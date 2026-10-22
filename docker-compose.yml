@@ -1,0 +1,50 @@
+# Local development stack. Not for production.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: flowchain
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: { context: ., dockerfile: infra/docker/backend.Dockerfile }
+    command: ["migrate"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/flowchain
+    depends_on: { db: { condition: service_healthy } }
+
+  api:
+    build: { context: ., dockerfile: infra/docker/backend.Dockerfile }
+    command: ["api"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/flowchain
+    ports: ["8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., dockerfile: infra/docker/backend.Dockerfile }
+    command: ["worker"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/flowchain
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  dashboard:
+    build: { context: ., dockerfile: infra/docker/frontend.Dockerfile }
+    environment:
+      BACKEND_URL: http://api:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata:

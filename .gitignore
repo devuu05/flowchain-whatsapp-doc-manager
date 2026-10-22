@@ -1,0 +1,29 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+*credentials*.json
+client_secret*.json
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# node
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# misc
+.DS_Store
+*.log
