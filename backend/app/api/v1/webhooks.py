@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
@@ -18,9 +18,10 @@ from app.models import IntegrationConfig, IntegrationKind, IntegrationStatus
 from app.providers import registry
 from app.schemas.events import NormalizedEvent
 from app.security.crypto import constant_time_equals
+from app.security.rate_limit import limit
 from app.services.ingest import ingest_events
 
-router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+router = APIRouter(prefix="/webhooks", tags=["webhooks"], dependencies=[Depends(limit("webhook"))])
 log = logging.getLogger(__name__)
 
 

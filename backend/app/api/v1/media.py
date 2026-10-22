@@ -4,16 +4,17 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 
 from app.api.deps import DB
 from app.core.errors import NotFound
 from app.db.base import utcnow
 from app.models import MediaBlob
+from app.security.rate_limit import limit
 from app.security.signed_urls import verify_media_token
 
-router = APIRouter(prefix="/media", tags=["media"])
+router = APIRouter(prefix="/media", tags=["media"], dependencies=[Depends(limit("media"))])
 
 
 @router.get("/{token}")

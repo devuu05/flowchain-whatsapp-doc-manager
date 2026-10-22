@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
 
 from app.api.deps import DB, Auth, client_ip
@@ -11,6 +11,7 @@ from app.core.errors import AppError, NotAuthenticated
 from app.models import Tenant, TenantMembership
 from app.schemas.api import LoginIn, MembershipOut, MeOut, PasswordChangeIn
 from app.security.passwords import hash_password, validate_password_strength, verify_password
+from app.security.rate_limit import limit
 from app.services import audit
 from app.services.auth import authenticate, create_session, csrf_for, revoke_all_sessions
 
@@ -57,7 +58,7 @@ def _me(db: DB, auth_user_id: object, csrf: str) -> MeOut:
     )
 
 
-@router.post("/login", response_model=MeOut)
+@router.post("/login", response_model=MeOut, dependencies=[Depends(limit("login"))])
 def login(body: LoginIn, request: Request, response: Response, db: DB) -> MeOut:
     issued = authenticate(
         db,

@@ -1,0 +1,40 @@
+# Render Blueprint (NOT applied automatically — review docs/operations/deployment-plan.md first).
+# Creating these resources requires the owner's Render account and explicit approval.
+services:
+  - type: web
+    name: flowchain-api
+    runtime: docker
+    dockerfilePath: infra/docker/backend.Dockerfile
+    dockerContext: .
+    plan: free            # change to "starter" (~$7/mo) for always-on, reliable webhooks
+    region: singapore     # closest Render region to India; verify availability
+    healthCheckPath: /health
+    autoDeploy: false     # deploy deliberately after CI passes
+    envVars:
+      - { key: APP_ENV, value: production }
+      - { key: EMBEDDED_WORKER, value: "true" }
+      - { key: RUN_MIGRATIONS_ON_START, value: "true" }
+      - { key: COOKIE_SECURE, value: "true" }
+      - { key: ALLOW_FAKE_PROVIDERS, value: "false" }
+      - { key: FORWARDED_ALLOW_IPS, value: "*" }   # Render's proxy terminates TLS in front of the app
+      - { key: LOG_JSON, value: "true" }
+      - { key: DATABASE_URL, sync: false }          # Supabase pooler URL (postgresql+psycopg://...)
+      - { key: SECRET_KEY, sync: false }
+      - { key: FIELD_ENCRYPTION_KEYS, sync: false }
+      - { key: PUBLIC_BASE_URL, sync: false }       # https://flowchain-api.onrender.com
+      - { key: DASHBOARD_URL, sync: false }         # https://flowchain-dashboard.onrender.com
+      - { key: GOOGLE_CLIENT_ID, sync: false }
+      - { key: GOOGLE_CLIENT_SECRET, sync: false }
+      - { key: GEMINI_API_KEY, sync: false }
+
+  - type: web
+    name: flowchain-dashboard
+    runtime: docker
+    dockerfilePath: infra/docker/frontend.Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /login
+    autoDeploy: false
+    envVars:
+      - { key: BACKEND_URL, sync: false }           # build-time: https://flowchain-api.onrender.com

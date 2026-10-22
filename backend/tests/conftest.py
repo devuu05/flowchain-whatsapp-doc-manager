@@ -256,3 +256,12 @@ __all__ = [
     "sent_texts",
     "text_event",
 ]
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> Iterator[None]:
+    from app.security.rate_limit import LIMITERS
+
+    for limiter in LIMITERS.values():
+        limiter.reset()
+    yield

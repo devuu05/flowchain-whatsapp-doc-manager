@@ -25,6 +25,12 @@ SENSITIVE_KEYS = {
     "x-goog-api-key",
     "base64",
     "data_b64",
+    "b64",
+    # WhatsApp media internals: decryption keys and embedded thumbnails (document content).
+    "mediakey",
+    "jpegthumbnail",
+    "thumbnail",
+    "pngthumbnail",
 }
 
 _PATTERNS = [

@@ -69,6 +69,10 @@ def handle_inbound(db: Session, job: Job) -> None:
     ctx = conversation.Ctx(db=db, tenant=tenant, conn=conn, sender=ev.sender, event=ev_row)
     if ev.media is not None:
         conversation.handle_media(ctx, ev)
+        # The provider reference (download handle, media keys) is no longer needed: drop it.
+        normalized = dict(ev_row.normalized)
+        normalized["media"] = {**normalized["media"], "provider_ref": {}}
+        ev_row.normalized = normalized
     else:
         conversation.handle_text(ctx, ev)
     ev_row.status = InboundStatus.processed

@@ -22,12 +22,9 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
 def client_ip(request: Request) -> str | None:
-    # Only the first X-Forwarded-For hop set by our own proxy is meaningful; we record it
-    # for audit purposes only, never for authorization.
-    fwd = request.headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()[:64]
-    return request.client.host if request.client else None
+    # uvicorn --proxy-headers rewrites request.client from X-Forwarded-For only for proxies in
+    # FORWARDED_ALLOW_IPS, so a client cannot spoof this value. Used for audit/rate limits only.
+    return request.client.host[:64] if request.client else None
 
 
 @dataclass
