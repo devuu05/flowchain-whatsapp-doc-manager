@@ -30,6 +30,11 @@ services:
       - { key: GOOGLE_CLIENT_ID, sync: false }
       - { key: GOOGLE_CLIENT_SECRET, sync: false }
       - { key: GEMINI_API_KEY, sync: false }      # optional; leave empty unless billed + consented
+      # One-time first-run setup (no shell on the free plan). Delete these after first sign-in.
+      - { key: BOOTSTRAP_ADMIN_EMAIL, sync: false }
+      - { key: BOOTSTRAP_ADMIN_PASSWORD, sync: false }
+      - { key: BOOTSTRAP_TENANT_NAME, sync: false }
+      - { key: BOOTSTRAP_SENDER_PHONES, sync: false } # comma separated, with country code
 
   - type: web
     name: flowchain-dashboard

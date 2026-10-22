@@ -48,6 +48,10 @@ The code must be in `devuu05/flowchain-whatsapp-doc-manager` (CI runs there; Ren
 | api | `DASHBOARD_URL` | `https://flowchain-dashboard.onrender.com` |
 | api | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | step 6 (can be added later) |
 | api | `GEMINI_API_KEY` | leave empty (AI off) unless billed key + client consent |
+| api | `BOOTSTRAP_ADMIN_EMAIL` | your email (first-run admin) |
+| api | `BOOTSTRAP_ADMIN_PASSWORD` | a strong password (≥12 chars, upper+lower case, digit) |
+| api | `BOOTSTRAP_TENANT_NAME` | the pilot client's business name |
+| api | `BOOTSTRAP_SENDER_PHONES` | staff WhatsApp numbers, comma separated, with country code |
 | dashboard | `BACKEND_URL` | `https://flowchain-api.onrender.com` |
 | dashboard | `PROXY_SHARED_SECRET` | same as the API |
 
@@ -56,15 +60,14 @@ The code must be in `devuu05/flowchain-whatsapp-doc-manager` (CI runs there; Ren
 4. Check: `https://flowchain-api.onrender.com/health/ready` → `{"status":"ok",...}` and
    `https://flowchain-dashboard.onrender.com/login` shows the sign-in page.
 
-## 5. Create your admin user and the pilot workspace
-Render → `flowchain-api` → **Shell** (if the free plan does not offer Shell, run the same commands
-locally with `DATABASE_URL` pointed at Supabase):
-```bash
-python -m app.cli create-admin --email you@yourdomain.com      # type a strong password
-python -m app.cli create-tenant --name "Pilot Client" --owner-email you@yourdomain.com
-python -m app.cli add-sender --tenant-slug pilot-client --phone "+91 98xxxxxxx"
-```
-Sign in at the dashboard URL.
+## 5. First sign-in (automatic setup)
+The free plan has no shell, so the `BOOTSTRAP_*` variables do the setup on the API's first start:
+they create your platform-admin login, the pilot workspace and its authorized senders. It only
+acts on an empty database and never changes existing users.
+1. Sign in at the dashboard URL with the bootstrap email and password.
+2. **Change your password** (it was typed into Render's environment).
+3. Render → `flowchain-api` → Environment → **delete** `BOOTSTRAP_ADMIN_PASSWORD` (and the other
+   `BOOTSTRAP_*` variables) → save. Render redeploys; nothing else changes.
 
 ## 6. Google Drive OAuth
 Follow `docs/setup/google-drive.md` with redirect URI

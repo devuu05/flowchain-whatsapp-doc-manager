@@ -7,6 +7,7 @@ Commands:
   gen-key                                    print a new Fernet key for FIELD_ENCRYPTION_KEYS
   rotate-keys                                re-encrypt integration secrets with the first key
   sweep                                      run maintenance once
+  bootstrap                                  apply BOOTSTRAP_* env vars (idempotent)
 """
 
 from __future__ import annotations
@@ -50,6 +51,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("gen-key")
     sub.add_parser("rotate-keys")
     sub.add_parser("sweep")
+    sub.add_parser("bootstrap")
     args = p.parse_args(argv)
 
     if args.cmd == "gen-key":
@@ -97,6 +99,10 @@ def main(argv: list[str] | None = None) -> None:
                 cfg.encrypted_secrets = rotate(cfg.encrypted_secrets)
                 n += 1
             print(f"Re-encrypted {n} integration secret blobs")
+        elif args.cmd == "bootstrap":
+            from app.services.bootstrap import bootstrap_from_env
+
+            print(bootstrap_from_env(db))
         elif args.cmd == "sweep":
             from app.services.maintenance import sweep
 
