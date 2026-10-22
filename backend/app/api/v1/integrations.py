@@ -47,9 +47,8 @@ def _out(cfg: IntegrationConfig) -> IntegrationOut:
     out = IntegrationOut.model_validate(cfg)
     out.has_secrets = bool(cfg.encrypted_secrets)
     if cfg.kind == IntegrationKind.whatsapp and cfg.connection_key:
-        provider = "wasender" if cfg.provider == "wasender" else cfg.provider
         out.webhook_url = (
-            f"{get_settings().public_base_url}/api/v1/webhooks/{provider}/{cfg.connection_key}"
+            f"{get_settings().public_base_url}/api/v1/webhooks/{cfg.provider}/{cfg.connection_key}"
         )
     return out
 
@@ -86,9 +85,9 @@ def connect_whatsapp(body: WhatsAppConnectIn, ctx: Admin, db: DB) -> Integration
     s = get_settings()
     if body.provider == "fake" and not s.allow_fake_providers:
         raise AppError("Fake provider is disabled", code="provider_unavailable")
-    if body.provider == "wasender" and not (body.api_key and body.webhook_secret):
+    if body.provider in ("wasender", "wasender_dev") and not (body.api_key and body.webhook_secret):
         raise AppError(
-            "api_key and webhook_secret are required for WasenderAPI", code="secrets_required"
+            "The API token and webhook signing secret are both required", code="secrets_required"
         )
     try:
         phone = normalize_phone(body.phone_number)

@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     # WhatsApp (Wasender)
     wasender_base_url: str = "https://www.wasenderapi.com/api"
     wasender_timeout_seconds: float = 20.0
+    # wasender.dev (a different service from WasenderAPI)
+    wasender_dev_base_url: str = "https://api.wasender.dev"
 
     # Google OAuth / Drive
     google_client_id: str = ""

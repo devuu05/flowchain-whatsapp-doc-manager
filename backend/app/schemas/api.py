@@ -226,7 +226,7 @@ class IntegrationOut(ORM):
 
 
 class WhatsAppConnectIn(BaseModel):
-    provider: Literal["wasender", "fake"] = "wasender"
+    provider: Literal["wasender_dev", "wasender", "fake"] = "wasender_dev"
     name: str = Field(default="WhatsApp", max_length=120)
     phone_number: str = Field(min_length=8, max_length=24)
     api_key: str | None = Field(default=None, min_length=8, max_length=500)

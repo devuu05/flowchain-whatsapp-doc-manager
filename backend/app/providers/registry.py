@@ -28,6 +28,7 @@ from app.providers.storage.google_drive import GoogleDriveStorage
 from app.providers.whatsapp.base import WhatsAppProvider
 from app.providers.whatsapp.fake import FakeWhatsAppProvider
 from app.providers.whatsapp.wasender import WasenderProvider
+from app.providers.whatsapp.wasender_dev import WasenderDevProvider
 from app.security.crypto import decrypt_json, encrypt_json
 
 log = logging.getLogger(__name__)
@@ -61,6 +62,14 @@ def whatsapp_for(conn: IntegrationConfig) -> WhatsAppProvider:
         provider: WhatsAppProvider = _overrides["whatsapp"](conn)
         return provider
     s = get_settings()
+    if conn.provider == "wasender_dev":
+        secrets = decrypt_json(conn.encrypted_secrets)
+        return WasenderDevProvider(
+            token=secrets.get("api_key", ""),
+            webhook_secret=secrets.get("webhook_secret", ""),
+            base_url=s.wasender_dev_base_url,
+            timeout=s.wasender_timeout_seconds,
+        )
     if conn.provider == "wasender":
         secrets = decrypt_json(conn.encrypted_secrets)
         return WasenderProvider(

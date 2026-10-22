@@ -5,7 +5,24 @@ wasenderapi.com, ai.google.dev and vendor pricing pages. Facts below come from s
 sources as labelled. Every item marked **UNVERIFIED** must be confirmed against the live docs
 / a real account before the pilot (see `docs/testing/manual-provider-tests.md`).
 
-## WasenderAPI (WA Sender)
+## wasender.dev (the provider actually used for the pilot)
+Source: wasender.dev's published `llms.txt` / `llms-full.txt`, supplied by the owner on 2026-10-22
+(the build sandbox cannot reach wasender.dev). Adapter: `providers/whatsapp/wasender_dev.py`.
+
+| Item | Value | Status |
+|---|---|---|
+| Base URL | `https://api.wasender.dev` (`WASENDER_DEV_BASE_URL`) | documented |
+| Auth | `Authorization: Bearer wsk_...` channel token per number | documented |
+| Send text | `POST /messages/text {"to": "<digits, no +>", "body"}` → `{"sent": true, "message": {"id", "status"}}` | documented |
+| Send document | `POST /messages/document` — body `{"to", "media": <URL>, "filename", "caption"}` | endpoint documented; **fields UNVERIFIED** (whapi.cloud format) |
+| Download media | `GET /media/{MediaID}` | documented |
+| Health | `GET /health` → `status.text` `connected`; `hibernated` is healthy | documented |
+| Webhook signature | `x-wasender-signature: sha256=<hex>` = HMAC-SHA256(secret, raw body) | documented |
+| Webhook payload | `{"messages": [{id, type, chat_id, from, from_me, from_name, timestamp, text.body | image/document{id, mime_type, file_size, file_name, caption}}]}` | **UNVERIFIED** (whapi.cloud format; service claims compatibility) |
+| Webhook retries | "We retry failed deliveries with exponential backoff" (dashboard) | documented |
+| Errors | `{"error": {"code", "message"}}`; 429 + Retry-After, 503 waking → retry; 401/402/403 permanent | documented |
+
+## WasenderAPI (wasenderapi.com — not used for the pilot)
 Source: WasenderAPI's own client SDKs — `wasenderapi` npm 0.4.0, PyPI `wasenderapi` 0.3.5,
 `github.com/wasenderapi/wasenderapi-laravel` — not the live API reference.
 

@@ -39,7 +39,8 @@ def _jid_to_phone(jid: str | None) -> str | None:
         return None
     user = jid.split("@", 1)[0].split(":", 1)[0]
     digits = "".join(c for c in user if c.isdigit())
-    return digits or None
+    # Malformed ids must not break parsing of the whole webhook batch.
+    return digits if 6 <= len(digits) <= 20 else None
 
 
 def _unwrap_message(message: dict[str, Any]) -> dict[str, Any]:

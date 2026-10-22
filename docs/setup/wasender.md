@@ -1,4 +1,26 @@
-# WhatsApp via WasenderAPI — setup and verification
+# WhatsApp setup
+
+Two providers are supported. **The pilot uses wasender.dev** (`app.wasender.dev`). WasenderAPI
+(`wasenderapi.com`) is a different company; its adapter is kept for completeness.
+
+## wasender.dev (pilot)
+1. app.wasender.dev → **Numbers** → your connected number. Have its **channel token** (`wsk_...`)
+   ready — it is shown once when the number is created; if lost, rotate it (old token stops working).
+2. Find the **webhook signing secret** wasender.dev uses for `x-wasender-signature`
+   (number → Webhook / settings, or `GET https://manage.wasender.dev/channels/{id}/webhook`).
+   Unsigned or wrongly signed webhooks are rejected with 403 by design.
+3. Flow Chain dashboard → **WhatsApp** → Provider **wasender.dev** → number, channel token, signing
+   secret → **Connect**. Copy the **Webhook URL** shown
+   (`https://<api>/api/v1/webhooks/wasender_dev/<key>`).
+4. app.wasender.dev → number → **Webhook** → paste the URL → **Save webhook**.
+5. Dashboard → **WhatsApp → Check connection** → `connected` (or `hibernated`, also healthy).
+6. From an authorized phone send `hi` → help text.
+
+Risks: unofficial WhatsApp client (use a dedicated number); first-contact messages to people who
+never messaged you can get a number restricted — the bot only answers authorized senders.
+Verified vs. unverified API details: `docs/architecture/provider-notes.md`.
+
+## WasenderAPI (wasenderapi.com) — not used for the pilot
 
 > The adapter was built from WasenderAPI's official SDKs because the live API reference was not
 > reachable from the build environment. Verify each item in

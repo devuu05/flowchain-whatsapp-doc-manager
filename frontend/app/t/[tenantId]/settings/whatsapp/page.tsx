@@ -13,7 +13,9 @@ export default function WhatsAppSettings() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const { data, error, loading, reload } = useApi<Integration[]>(`/tenants/${tenantId}/integrations`);
   const conns = data?.filter((i) => i.kind === "whatsapp" && i.status !== "disconnected") ?? [];
-  const [form, setForm] = useState({ name: "WhatsApp", phone_number: "", api_key: "", webhook_secret: "" });
+  const emptyForm = { provider: "wasender_dev", name: "WhatsApp", phone_number: "", api_key: "", webhook_secret: "" };
+  const [form, setForm] = useState(emptyForm);
+  const isDev = form.provider === "wasender_dev";
   const [err, setErr] = useState<unknown>();
   const [msg, setMsg] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -37,9 +39,9 @@ export default function WhatsAppSettings() {
     <>
       <h1>WhatsApp connection</h1>
       <Notice>
-        Uses WasenderAPI. Enter the session&apos;s API key and webhook secret from the Wasender dashboard. They are
-        encrypted on the server and never shown again. Then paste the webhook URL below into Wasender and enable the
-        <em> messages.received</em> event.
+        Enter the number&apos;s API token and webhook signing secret from your WhatsApp provider. They are encrypted on
+        the server and never shown again. After connecting, copy the <strong>Webhook URL</strong> shown here into the
+        provider&apos;s webhook settings.
       </Notice>
       {msg && <Notice kind="success">{msg}</Notice>}
       <ErrorAlert error={err ?? error} onRetry={reload} />
@@ -65,13 +67,19 @@ export default function WhatsAppSettings() {
         <h2>Connect a number</h2>
         <form className="form-grid" onSubmit={(e) => {
           e.preventDefault();
-          void act(() => post(`/tenants/${tenantId}/integrations/whatsapp`, { provider: "wasender", ...form }), "WhatsApp number connected. Configure the webhook URL in Wasender next.")
-            .then(() => setForm({ name: "WhatsApp", phone_number: "", api_key: "", webhook_secret: "" }));
+          void act(() => post(`/tenants/${tenantId}/integrations/whatsapp`, form), "WhatsApp number connected. Now paste the webhook URL into your provider.")
+            .then(() => setForm(emptyForm));
         }}>
+          <Field label="Provider">{(id) => (
+            <select id={id} value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })}>
+              <option value="wasender_dev">wasender.dev</option>
+              <option value="wasender">WasenderAPI (wasenderapi.com)</option>
+            </select>
+          )}</Field>
           <Field label="Label">{(id) => <input id={id} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />}</Field>
           <Field label="WhatsApp number (with country code)">{(id) => <input id={id} required inputMode="tel" placeholder="+91 98765 43210" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} />}</Field>
-          <Field label="Wasender session API key">{(id) => <input id={id} required type="password" autoComplete="off" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} />}</Field>
-          <Field label="Wasender webhook secret">{(id) => <input id={id} required type="password" autoComplete="off" value={form.webhook_secret} onChange={(e) => setForm({ ...form, webhook_secret: e.target.value })} />}</Field>
+          <Field label={isDev ? "Channel token (wsk_…)" : "Wasender session API key"}>{(id) => <input id={id} required type="password" autoComplete="off" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} />}</Field>
+          <Field label={isDev ? "Webhook signing secret" : "Wasender webhook secret"}>{(id) => <input id={id} required type="password" autoComplete="off" value={form.webhook_secret} onChange={(e) => setForm({ ...form, webhook_secret: e.target.value })} />}</Field>
           <div className="row-end"><button type="submit" className="btn btn-primary" disabled={busy}>Connect</button></div>
         </form>
       </section>
