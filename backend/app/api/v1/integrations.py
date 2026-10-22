@@ -207,10 +207,11 @@ def google_start(ctx: Admin) -> OAuthStartOut:
     return OAuthStartOut(authorization_url=google_oauth.build_authorization_url(state))
 
 
-def _redirect(status: str) -> RedirectResponse:
-    return RedirectResponse(
-        f"{get_settings().dashboard_url}/settings/drive?result={status}", status_code=303
-    )
+def _redirect(status: str, tenant_id: uuid.UUID | None = None) -> RedirectResponse:
+    base = get_settings().dashboard_url
+    if tenant_id is None:
+        return RedirectResponse(f"{base}/?drive={status}", status_code=303)
+    return RedirectResponse(f"{base}/t/{tenant_id}/settings/drive?result={status}", status_code=303)
 
 
 @router.get("/integrations/google/callback", include_in_schema=False)
@@ -223,9 +224,9 @@ def google_callback(
     data = verify("google_oauth", state)
     if data is None:
         return _redirect("invalid_state")
-    if error or not code:
-        return _redirect("denied")
     tenant_id, user_id = uuid.UUID(data["t"]), uuid.UUID(data["u"])
+    if error or not code:
+        return _redirect("denied", tenant_id)
     user = db.get(User, user_id)
     membership = db.scalar(
         select(TenantMembership).where(
@@ -241,18 +242,18 @@ def google_callback(
         )
     )
     if not allowed:
-        return _redirect("forbidden")
+        return _redirect("forbidden", tenant_id)
     try:
         tokens = google_oauth.exchange_code(code)
         if not tokens.refresh_token:
-            return _redirect("no_refresh_token")
+            return _redirect("no_refresh_token", tenant_id)
         cfg = registry.drive_config(db, tenant_id)
         root_id = cfg.settings.get("root_folder_id") if cfg else None
         if not root_id:
             root_id = GoogleDriveStorage.create_root_folder(tokens.access_token, DRIVE_ROOT_NAME)
     except ProviderError as exc:
         log.warning("google_oauth_failed", extra={"error": str(exc)})
-        return _redirect("error")
+        return _redirect("error", tenant_id)
     if cfg is None:
         cfg = IntegrationConfig(
             tenant_id=tenant_id,
@@ -281,7 +282,7 @@ def google_callback(
         details={"scope": tokens.scope},
     )
     db.commit()
-    return _redirect("connected")
+    return _redirect("connected", tenant_id)
 
 
 @router.post(

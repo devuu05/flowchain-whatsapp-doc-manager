@@ -219,4 +219,4 @@ def test_oauth_callback_rejects_tampered_state(client: TestClient) -> None:
         params={"state": "abc.def", "code": "x"},
         follow_redirects=False,
     )
-    assert cb.headers["location"].endswith("result=invalid_state")
+    assert cb.headers["location"].endswith("drive=invalid_state")
