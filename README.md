@@ -48,6 +48,7 @@ ADRs in [docs/architecture/adr](docs/architecture/adr), phase status in
 | WhatsApp (WasenderAPI) setup | docs/setup/wasender.md |
 | Google Drive OAuth setup | docs/setup/google-drive.md |
 | Gemini (optional AI) | docs/setup/gemini.md |
+| Deploy on Render (free) step by step | docs/operations/render-deploy.md |
 | Deployment plan, env checklist, costs | docs/operations/deployment-plan.md |
 | Free-tier limitations | docs/operations/hosting.md |
 | Runbook, incidents, backup/restore, rollback | docs/operations/*.md |

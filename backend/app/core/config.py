@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     # Number of reverse-proxy hops in front of the API that append to X-Forwarded-For
     # (Render/most PaaS: 1). 0 = use the socket peer address. Used for audit IPs/rate limits.
     trusted_proxy_hops: int = 0
+    # Shared with the dashboard's /api proxy so it can relay the browser's IP (X-Client-IP).
+    proxy_shared_secret: SecretStr = SecretStr("")
 
     # Request limits
     max_webhook_body_bytes: int = 1_000_000

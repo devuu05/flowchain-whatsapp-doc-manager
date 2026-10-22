@@ -294,3 +294,23 @@ def test_ignored_media_event_keeps_no_provider_reference(
     row = db.scalar(select(InboundEvent))
     assert row is not None and row.normalized["media"]["provider_ref"] == {}
     assert db.scalar(select(Message)) is None
+
+
+def test_dashboard_proxy_relayed_ip_trusted_only_with_secret(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from pydantic import SecretStr
+
+    from app.api.deps import client_ip
+    from app.core.config import get_settings
+
+    def req(headers: dict[str, str]):  # type: ignore[no-untyped-def]
+        return type(
+            "R", (), {"headers": headers, "client": type("C", (), {"host": "10.0.0.1"})()}
+        )()
+
+    monkeypatch.setattr(get_settings(), "proxy_shared_secret", SecretStr("proxy-secret-123"))
+    good = {"x-proxy-auth": "proxy-secret-123", "x-client-ip": "203.0.113.5"}
+    assert client_ip(req(good)) == "203.0.113.5"
+    assert client_ip(req({**good, "x-proxy-auth": "wrong"})) == "10.0.0.1"
+    assert client_ip(req({**good, "x-client-ip": "not-an-ip"})) == "10.0.0.1"
+    monkeypatch.setattr(get_settings(), "proxy_shared_secret", SecretStr(""))
+    assert client_ip(req(good)) == "10.0.0.1"  # no secret configured -> never trusted

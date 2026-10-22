@@ -26,6 +26,9 @@ in the build sandbox — re-check before committing). Links in `docs/deployment/
 - Supabase pauses after 7 idle days; real pilot usage normally prevents this. A paused project
   must be resumed from the Supabase dashboard.
 
+## Decision (2026-10-22)
+The owner chose **Render free + Supabase free (₹0)**. See `render-deploy.md`.
+
 ## Recommendation
 - **Pilot (₹0, best effort):** Render free web service (Docker, `EMBEDDED_WORKER=true`) +
   Supabase free Postgres + dashboard on Render free static/Node or Cloudflare Workers. Accept

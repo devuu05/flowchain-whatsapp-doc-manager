@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import uuid
 from dataclasses import dataclass
 from typing import Annotated
@@ -24,11 +25,21 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 def client_ip(request: Request) -> str | None:
     """Client address for audit logs and rate limits (never for authorization).
 
-    With TRUSTED_PROXY_HOPS=N, the N-th entry from the RIGHT of X-Forwarded-For is used: those
-    entries were appended by our own proxies, while entries further left are client-supplied
-    and spoofable. With 0 hops the socket peer is used.
+    1. Requests relayed by our dashboard proxy carry `X-Proxy-Auth: <PROXY_SHARED_SECRET>` and
+       the browser's address in `X-Client-IP`; it is trusted only when the secret matches.
+    2. With TRUSTED_PROXY_HOPS=N, the N-th entry from the RIGHT of X-Forwarded-For is used: those
+       entries were appended by our own proxies; entries further left are client-supplied.
+    3. Otherwise the socket peer is used.
     """
-    hops = get_settings().trusted_proxy_hops
+    s = get_settings()
+    secret = s.proxy_shared_secret.get_secret_value()
+    if secret and constant_time_equals(request.headers.get("x-proxy-auth"), secret):
+        relayed = (request.headers.get("x-client-ip") or "").strip()
+        try:
+            return str(ipaddress.ip_address(relayed))
+        except ValueError:
+            pass
+    hops = s.trusted_proxy_hops
     if hops > 0:
         parts = [
             p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()

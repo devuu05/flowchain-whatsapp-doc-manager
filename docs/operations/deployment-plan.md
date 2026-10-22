@@ -1,6 +1,8 @@
 # Deployment plan
 
-**Nothing has been deployed.** Creating hosting resources, DNS, or production credentials requires
+**Chosen: Option A (₹0) on Render — step-by-step in `docs/operations/render-deploy.md`.**
+
+**Nothing has been deployed yet.** Creating hosting resources, DNS, or production credentials requires
 your accounts and approval. This plan is ready to execute once you approve it.
 
 ## Target architecture (pilot)
@@ -30,10 +32,10 @@ Hosting facts and limits: `docs/operations/hosting.md`.
    `FIELD_ENCRYPTION_KEYS` (`uv run python -m app.cli gen-key`). Store in a password manager.
 3. **Google OAuth** client per `docs/setup/google-drive.md` with redirect
    `https://<dashboard-host>/api/v1/integrations/google/callback` (the callback is proxied by the dashboard so the session cookie is present); publish consent screen.
-4. **Render**: New → Blueprint → point at the GitHub repo → review `infra/deployment/render.yaml`
+4. **Render**: New → Blueprint → point at the GitHub repo → review `render.yaml` (repository root)
    → fill `sync: false` env vars in the dashboard (never in git). Choose plan per option A/B.
    Deploy API first; confirm `GET https://<api>/health/ready` returns `{"status":"ok"}`.
-   Then set dashboard `BACKEND_URL` (build-time) and deploy it.
+   Dashboard `BACKEND_URL` and `PROXY_SHARED_SECRET` are read at runtime by its `/api` proxy.
 5. **Bootstrap**: Render shell on the API service:
    `python -m app.cli create-admin --email <you>` (enter password), `create-tenant`, `add-sender`.
 6. **WhatsApp**: follow `docs/setup/wasender.md`; run `docs/testing/manual-provider-tests.md`.
@@ -56,7 +58,9 @@ Hosting facts and limits: `docs/operations/hosting.md`.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | ✔ | |
 | `GEMINI_API_KEY` | optional | billed project only |
 | `INTERNAL_WEBHOOK_TOKEN` | ✘ | leave empty in production |
-| `BACKEND_URL` (dashboard, build time) | ✔ | API origin for the `/api` proxy |
+| `PROXY_SHARED_SECRET` (API + dashboard) | ✔ | same random value on both; lets the dashboard relay browser IPs |
+| `BACKEND_URL` (dashboard, runtime) | ✔ | API origin for the `/api` proxy |
+| `DASHBOARD_TRUSTED_PROXY_HOPS` (dashboard) | ✔ | Render: `1` |
 
 ## Safe migrations
 Migrations are additive and backward compatible within a release; destructive changes are split

@@ -7,10 +7,10 @@ labelled FAKE providers). No real customer data was used; all documents are gene
 ## Summary
 | Suite | Result | Command |
 |---|---|---|
-| Backend unit + integration (pytest, real Postgres) | **190 passed, 0 failed** | `cd backend && uv run pytest` |
+| Backend unit + integration (pytest, real Postgres) | **191 passed, 0 failed** | `cd backend && uv run pytest` |
 | Backend coverage | 87% lines (`app/`) | `uv run pytest --cov=app` |
 | Backend lint / format / types | ruff ✔, ruff format ✔, mypy ✔ | |
-| Frontend (Vitest + Testing Library) | **18 passed, 0 failed** | `cd frontend && npm test` |
+| Frontend (Vitest + Testing Library) | **23 passed, 0 failed** | `cd frontend && npm test` |
 | Frontend lint / typecheck / production build | ✔ / ✔ / ✔ | |
 | Dependency audit | pip-audit: no known vulns; npm audit (prod): 0 | |
 | Docker images build + run (non-root) | ✔ backend 408 MB, dashboard 335 MB | |

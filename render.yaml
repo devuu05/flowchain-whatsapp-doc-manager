@@ -1,0 +1,46 @@
+# Render Blueprint (must live at the repository root). NOT applied automatically:
+# Render dashboard -> New -> Blueprint -> select this repo. See docs/operations/render-deploy.md.
+# Plan "free": services sleep after ~15 min without traffic (cold start ~1 min).
+services:
+  - type: web
+    name: flowchain-api
+    runtime: docker
+    dockerfilePath: infra/docker/backend.Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore          # closest Render region to India
+    healthCheckPath: /health
+    autoDeploy: false          # deploy deliberately after CI passes
+    envVars:
+      - { key: APP_ENV, value: production }
+      - { key: EMBEDDED_WORKER, value: "true" }
+      - { key: RUN_MIGRATIONS_ON_START, value: "true" }
+      - { key: COOKIE_SECURE, value: "true" }
+      - { key: ALLOW_FAKE_PROVIDERS, value: "false" }
+      - { key: TRUSTED_PROXY_HOPS, value: "1" }   # Render's proxy appends the client IP (verify in audit log)
+      - { key: LOG_JSON, value: "true" }
+      - { key: DB_POOL_SIZE, value: "3" }
+      - { key: DB_MAX_OVERFLOW, value: "2" }
+      - { key: DATABASE_URL, sync: false }        # Supabase session pooler, postgresql+psycopg://...
+      - { key: SECRET_KEY, sync: false }
+      - { key: FIELD_ENCRYPTION_KEYS, sync: false }
+      - { key: PROXY_SHARED_SECRET, sync: false } # same value as on the dashboard
+      - { key: PUBLIC_BASE_URL, sync: false }     # https://flowchain-api.onrender.com
+      - { key: DASHBOARD_URL, sync: false }       # https://flowchain-dashboard.onrender.com
+      - { key: GOOGLE_CLIENT_ID, sync: false }
+      - { key: GOOGLE_CLIENT_SECRET, sync: false }
+      - { key: GEMINI_API_KEY, sync: false }      # optional; leave empty unless billed + consented
+
+  - type: web
+    name: flowchain-dashboard
+    runtime: docker
+    dockerfilePath: infra/docker/frontend.Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /login
+    autoDeploy: false
+    envVars:
+      - { key: DASHBOARD_TRUSTED_PROXY_HOPS, value: "1" }
+      - { key: BACKEND_URL, sync: false }         # https://flowchain-api.onrender.com
+      - { key: PROXY_SHARED_SECRET, sync: false } # same value as on the API

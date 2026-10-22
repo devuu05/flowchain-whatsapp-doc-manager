@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
 
-const backend = (process.env.BACKEND_URL ?? "http://localhost:8000").replace(/\/$/, "");
-
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "no-referrer" },
@@ -26,10 +24,7 @@ const config: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
-  // The dashboard proxies the API so the session cookie stays first-party (ADR 0003).
-  async rewrites() {
-    return [{ source: "/api/:path*", destination: `${backend}/api/:path*` }];
-  },
+  // /api/* is proxied at runtime by app/api/[...path]/route.ts (reads BACKEND_URL at runtime).
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
