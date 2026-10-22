@@ -52,7 +52,9 @@ LIMITERS = {
 
 
 def _client_key(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
+    from app.api.deps import client_ip
+
+    return client_ip(request) or "unknown"
 
 
 def limit(name: str) -> Callable[[Request], None]:

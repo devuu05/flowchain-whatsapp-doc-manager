@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_lockout_minutes: int = 15
 
+    # Number of reverse-proxy hops in front of the API that append to X-Forwarded-For
+    # (Render/most PaaS: 1). 0 = use the socket peer address. Used for audit IPs/rate limits.
+    trusted_proxy_hops: int = 0
+
     # Request limits
     max_webhook_body_bytes: int = 1_000_000
     max_json_body_bytes: int = 1_000_000
@@ -116,7 +120,9 @@ class Settings(BaseSettings):
 
     @property
     def google_redirect_uri(self) -> str:
-        return f"{self.public_base_url}/api/v1/integrations/google/callback"
+        # Routed through the dashboard's same-origin /api proxy so the browser sends the
+        # session cookie; the callback requires the same session that started the flow.
+        return f"{self.dashboard_url}/api/v1/integrations/google/callback"
 
 
 @lru_cache

@@ -85,6 +85,31 @@ def claim(db: Session, worker_id: str, lease_seconds: int | None = None) -> Job 
     return job
 
 
+class LeaseLost(Exception):
+    """This worker no longer owns the job; abort before causing side effects."""
+
+
+def renew_lease(job_id: uuid.UUID, worker_id: str, lease_seconds: int | None = None) -> bool:
+    """Extend the lease in an independent transaction. False if another worker owns the job."""
+    from app.db.session import get_sessionmaker
+
+    lease = lease_seconds or get_settings().worker_lease_seconds
+    with get_sessionmaker()() as db:
+        res = db.execute(
+            update(Job)
+            .where(Job.id == job_id, Job.locked_by == worker_id, Job.status == JobStatus.running)
+            .values(locked_until=utcnow() + timedelta(seconds=lease))
+        )
+        db.commit()
+        return bool(res.rowcount)  # type: ignore[attr-defined]
+
+
+def ensure_lease(job: Job) -> None:
+    """Call immediately before an external side effect (send, upload)."""
+    if not job.locked_by or not renew_lease(job.id, job.locked_by):
+        raise LeaseLost(f"lease lost for job {job.id}")
+
+
 def backoff_seconds(attempt: int) -> float:
     s = get_settings()
     ceiling = min(s.job_backoff_max_seconds, s.job_backoff_base_seconds * (2 ** (attempt - 1)))

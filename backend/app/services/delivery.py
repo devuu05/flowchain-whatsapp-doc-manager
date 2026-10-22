@@ -26,6 +26,7 @@ from app.providers.errors import ProviderError
 from app.security.signed_urls import make_media_token
 from app.services import audit, outbox
 from app.services.tenancy import is_authorized_sender
+from app.workers import queue
 from app.workers.errors import PermanentJobError, TransientJobError
 
 WHATSAPP_DOCUMENT_LIMIT = 100 * 1024 * 1024
@@ -55,7 +56,7 @@ def deliver_document(db: Session, job: Job) -> None:
         raise PermanentJobError("document is not available")
 
     key = f"deliver:{p['inbound_event_id']}"
-    msg = db.scalar(select(Message).where(Message.idempotency_key == key))
+    msg = db.scalar(select(Message).where(Message.idempotency_key == key).with_for_update())
     if msg is not None and msg.status == OutboundStatus.sent:
         return
     filename = doc.standardized_filename or doc.original_filename
@@ -104,7 +105,12 @@ def deliver_document(db: Session, job: Job) -> None:
     db.commit()
 
     provider = registry.whatsapp_for(conn)
+    msg = db.get(Message, msg.id, with_for_update=True, populate_existing=True)
+    assert msg is not None
+    if msg.status == OutboundStatus.sent:
+        return
     msg.attempts += 1
+    queue.ensure_lease(job)
     try:
         result = provider.send_document(to, document_url=url, filename=filename, caption=None)
     except ProviderError as exc:

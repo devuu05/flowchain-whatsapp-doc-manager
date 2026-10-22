@@ -33,10 +33,15 @@ def csrf_for(session: UserSession) -> str:
     return hmac_hex("csrf", session.token_hash)
 
 
-def _check_throttle(db: Session, email: str) -> None:
+PER_ACCOUNT_FAILURE_MULTIPLIER = 4
+
+
+def _check_throttle(db: Session, email: str, ip: str | None) -> None:
+    """Lock (email, ip) after LOGIN_MAX_FAILURES; lock the account from everywhere only after
+    4x that, so an attacker cannot cheaply lock someone else out."""
     s = get_settings()
     since = utcnow() - timedelta(minutes=s.login_lockout_minutes)
-    failures = db.scalar(
+    base = (
         select(func.count())
         .select_from(LoginAttempt)
         .where(
@@ -45,7 +50,11 @@ def _check_throttle(db: Session, email: str) -> None:
             LoginAttempt.created_at >= since,
         )
     )
-    if (failures or 0) >= s.login_max_failures:
+    per_ip = db.scalar(base.where(LoginAttempt.ip == ip)) if ip else 0
+    per_account = db.scalar(base) or 0
+    if (per_ip or 0) >= s.login_max_failures or (
+        per_account >= s.login_max_failures * PER_ACCOUNT_FAILURE_MULTIPLIER
+    ):
         raise TooManyRequests("Too many failed sign-in attempts. Try again later.")
 
 
@@ -53,7 +62,7 @@ def authenticate(
     db: Session, email: str, password: str, *, ip: str | None, user_agent: str | None
 ) -> IssuedSession:
     email = normalize_email(email)
-    _check_throttle(db, email)
+    _check_throttle(db, email, ip)
     user = db.scalar(select(User).where(User.email == email))
     ok = verify_password(user.password_hash if user else None, password)
     if not ok or user is None or not user.is_active:

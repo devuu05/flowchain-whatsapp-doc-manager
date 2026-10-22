@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.orm import Session
 
 from app.db.base import utcnow
@@ -95,6 +95,14 @@ def sweep(db: Session) -> dict[str, int]:
             InboundEvent.created_at <= now - timedelta(days=RAW_PAYLOAD_RETENTION_DAYS),
         )
         .values(raw_payload=None)
+    ).rowcount  # type: ignore[attr-defined]
+    stats["provider_refs_pruned"] = db.execute(
+        text(
+            "UPDATE inbound_events SET normalized = jsonb_set(normalized, '{media,provider_ref}', "
+            "'{}'::jsonb) WHERE (status IN ('processed', 'ignored') OR (status = 'failed' AND "
+            "updated_at < now() - interval '3 days')) AND normalized->'media'->'provider_ref' "
+            "IS NOT NULL AND normalized->'media'->'provider_ref' <> '{}'::jsonb"
+        )
     ).rowcount  # type: ignore[attr-defined]
     # Hard cap: no transient blob outlives this, even for failed documents (FK sets NULL).
     stats["stale_blobs_deleted"] = db.execute(

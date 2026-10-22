@@ -215,7 +215,10 @@ def overview(ctx: Member, db: DB) -> OverviewOut:
         jobs_dead=jobs.get(JobStatus.dead, 0),
         by_type={(k or "Unclassified"): v for k, v in by_type.items()},
         recent_documents=[DocumentOut.model_validate(d) for d in recent],
-        recent_activity=[AuditOut.model_validate(a) for a in activity],
+        # The audit trail is admin-only; members do not see it via the overview either.
+        recent_activity=(
+            [] if ctx.role == Role.member else [AuditOut.model_validate(a) for a in activity]
+        ),
     )
 
 
@@ -291,6 +294,7 @@ def add_member(body: MemberCreateIn, ctx: Admin, db: DB) -> MemberOut:
         raise Forbidden("Only owners can add owners")
     email = normalize_email(body.email)
     user = db.scalar(select(User).where(User.email == email))
+    existed = user is not None
     if user is None:
         if not body.initial_password:
             raise AppError("initial_password is required for a new user", code="password_required")
@@ -321,10 +325,14 @@ def add_member(body: MemberCreateIn, ctx: Admin, db: DB) -> MemberOut:
         target_type="user",
         target_id=user.id,
         ip=ctx.auth.ip,
-        details={"role": body.role},
+        details={"role": body.role, "existing_user": existed},
     )
     db.commit()
-    return _member_out(m, user)
+    out = _member_out(m, user)
+    if existed:
+        # Do not disclose another workspace's user profile/activity to this admin.
+        out.full_name, out.last_login_at = "", None
+    return out
 
 
 def _owner_count(db: DB, tenant_id: uuid.UUID) -> int:

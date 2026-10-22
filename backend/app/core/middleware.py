@@ -74,6 +74,8 @@ class RequestContextMiddleware:
             # Signed media tokens live in the path; never log them.
             if path.startswith("/api/v1/media/"):
                 path = "/api/v1/media/[token]"
+            elif path.startswith("/api/v1/webhooks/") and path.count("/") >= 5:
+                path = path.rsplit("/", 1)[0] + "/[connection-key]"
             log.info(
                 "request",
                 extra={

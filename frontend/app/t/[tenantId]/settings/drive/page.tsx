@@ -14,6 +14,7 @@ const RESULTS: Record<string, [string, "success" | "warning"]> = {
   denied: ["Google access was not granted.", "warning"],
   forbidden: ["Only workspace admins can connect Google Drive.", "warning"],
   invalid_state: ["The connection link expired. Please try again.", "warning"],
+  session_mismatch: ["Please finish connecting Google Drive in the same browser session you started it from.", "warning"],
   no_refresh_token: ["Google did not grant offline access. Remove the app at myaccount.google.com/permissions and retry.", "warning"],
   error: ["Google Drive connection failed. Please try again.", "warning"],
 };

@@ -63,7 +63,7 @@ def _execute(job: Job, worker_id: str) -> None:
             raise PermanentJobError(f"No handler for job kind {job.kind!r}")
         if job.attempts > job.max_attempts:
             raise PermanentJobError("Attempt budget exhausted (lease expired repeatedly)")
-        with Session() as db:
+        with Session() as db, _Heartbeat(job.id, worker_id):
             fresh = db.get(Job, job.id)
             assert fresh is not None
             spec.handler(db, fresh)
@@ -81,6 +81,9 @@ def _execute(job: Job, worker_id: str) -> None:
                 "ms": round((time.perf_counter() - started) * 1000),
             },
         )
+    except queue.LeaseLost:
+        # Another worker owns the job now; it will finish it. Do not record a failure.
+        log.warning("job_lease_lost_before_side_effect", extra={"kind": job.kind})
     except Exception as exc:
         category = "permanent" if isinstance(exc, PermanentJobError) else "transient"
         retry_after = exc.retry_after if isinstance(exc, TransientJobError) else None
@@ -112,6 +115,33 @@ def _execute(job: Job, worker_id: str) -> None:
         except Exception:
             # DB unavailable: the lease will expire and the job will be reclaimed.
             log.exception("job_failure_not_recorded", extra={"kind": job.kind})
+
+
+class _Heartbeat:
+    """Renews the job lease periodically while a handler runs."""
+
+    def __init__(self, job_id: uuid.UUID, worker_id: str) -> None:
+        self.job_id = job_id
+        self.worker_id = worker_id
+        self.stop = threading.Event()
+        self.interval = max(1.0, get_settings().worker_lease_seconds / 3)
+        self.thread = threading.Thread(target=self._run, daemon=True)
+
+    def _run(self) -> None:
+        while not self.stop.wait(self.interval):
+            try:
+                if not queue.renew_lease(self.job_id, self.worker_id):
+                    return
+            except Exception:
+                log.warning("lease_renewal_failed", exc_info=True)
+
+    def __enter__(self) -> _Heartbeat:
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.stop.set()
+        self.thread.join(timeout=5)
 
 
 def run_maintenance() -> None:

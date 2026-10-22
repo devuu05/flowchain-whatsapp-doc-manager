@@ -165,6 +165,19 @@ class GoogleDriveStorage(DocumentStorage):
             )
         return str(resp.json()["id"])
 
+    @classmethod
+    def folder_accessible(cls, access_token: str, folder_id: str, transport: Any = None) -> bool:
+        with httpx.Client(timeout=30, transport=transport) as client:
+            resp = client.get(
+                f"{API}/files/{folder_id}",
+                params={"fields": "id,trashed,mimeType"},
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        if resp.status_code != 200:
+            return False
+        body = resp.json()
+        return not body.get("trashed") and body.get("mimeType") == FOLDER_MIME
+
     # ---- files ----------------------------------------------------------------------------
     def find_by_document_id(self, document_id: str) -> StoredFile | None:
         q = (

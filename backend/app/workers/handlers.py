@@ -24,8 +24,9 @@ from app.providers import registry
 from app.providers.errors import ProviderError
 from app.schemas.events import NormalizedEvent
 from app.security.redaction import mask_phone
-from app.services import audit, conversation, delivery, pipeline
+from app.services import audit, conversation, delivery, outbox, pipeline
 from app.services.tenancy import is_authorized_sender
+from app.workers import queue
 from app.workers.errors import PermanentJobError, TransientJobError
 from app.workers.registry import job_handler
 
@@ -34,8 +35,32 @@ log = logging.getLogger(__name__)
 
 def _on_inbound_dead(db: Session, job: Job) -> None:
     ev = db.get(InboundEvent, uuid.UUID(job.payload["inbound_event_id"]))
-    if ev is not None and ev.status == InboundStatus.received:
-        ev.status = InboundStatus.failed
+    if ev is None or ev.status != InboundStatus.received:
+        return
+    # Keep the provider reference so an admin retry can still download the media; the
+    # maintenance sweep prunes it from failed events after a grace period.
+    ev.status = InboundStatus.failed
+    if ev.sender and is_authorized_sender(db, ev.tenant_id, ev.sender):
+        outbox.queue_text(
+            db,
+            tenant_id=ev.tenant_id,
+            connection_id=ev.connection_id,
+            to=ev.sender,
+            text=(
+                "❌ Sorry, I couldn't process your last message"
+                f"{' (file)' if ev.normalized.get('media') else ''}. Nothing was saved. "
+                "Please try sending it again in a few minutes."
+            ),
+            idempotency_key=f"inbound-failed:{ev.id}",
+            inbound_event_id=ev.id,
+        )
+
+
+def _strip_provider_ref(ev: InboundEvent) -> None:
+    """Drop the provider download handle (media keys, thumbnails) once it is not needed."""
+    media = ev.normalized.get("media") if isinstance(ev.normalized, dict) else None
+    if isinstance(media, dict) and media.get("provider_ref"):
+        ev.normalized = {**ev.normalized, "media": {**media, "provider_ref": {}}}
 
 
 @job_handler("handle_inbound", on_dead=_on_inbound_dead)
@@ -52,11 +77,13 @@ def handle_inbound(db: Session, job: Job) -> None:
     if tenant.status != TenantStatus.active or conn.status == IntegrationStatus.disconnected:
         ev_row.status = InboundStatus.ignored
         ev_row.ignore_reason = "workspace or connection inactive"
+        _strip_provider_ref(ev_row)
         return
     ev = NormalizedEvent.model_validate(ev_row.normalized)
     if not is_authorized_sender(db, tenant.id, ev.sender):
         ev_row.status = InboundStatus.ignored
         ev_row.ignore_reason = "sender not authorized"
+        _strip_provider_ref(ev_row)
         audit.record(
             db,
             "whatsapp.unauthorized_sender",
@@ -78,10 +105,7 @@ def handle_inbound(db: Session, job: Job) -> None:
     ctx = conversation.Ctx(db=db, tenant=tenant, conn=conn, sender=ev.sender, event=ev_row)
     if ev.media is not None:
         conversation.handle_media(ctx, ev)
-        # The provider reference (download handle, media keys) is no longer needed: drop it.
-        normalized = dict(ev_row.normalized)
-        normalized["media"] = {**normalized["media"], "provider_ref": {}}
-        ev_row.normalized = normalized
+        _strip_provider_ref(ev_row)
     else:
         conversation.handle_text(ctx, ev)
     ev_row.status = InboundStatus.processed
@@ -110,6 +134,7 @@ def send_message(db: Session, job: Job) -> None:
         raise PermanentJobError("connection missing")
     provider = registry.whatsapp_for(conn)
     msg.attempts += 1
+    queue.ensure_lease(job)
     try:
         result = provider.send_text(msg.phone, msg.body or "")
     except ProviderError as exc:

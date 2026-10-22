@@ -27,6 +27,7 @@ from app.services.extraction.base import ExtractionLimits, ExtractionResult
 from app.services.extraction.runner import run_extraction
 from app.services.naming import build_standard_filename, sanitize_component
 from app.services.tenancy import active_categories
+from app.workers import queue
 from app.workers.errors import PermanentJobError, TransientJobError
 
 log = logging.getLogger(__name__)
@@ -125,6 +126,12 @@ def classify(
     use_ai, why_not = _ai_permitted(db, tenant, doc, categories, text)
     if why_not:
         warnings.append(why_not)
+    # Raw images/scans reveal nothing to the local pre-check. Without a sender description we
+    # cannot rule out a sensitive (AI-blocked) category, so the bytes are not sent to AI.
+    blocked = any(not c.ai_allowed for c in categories)
+    send_bytes = use_ai and not text and (bool(doc.description) or not blocked)
+    if use_ai and not text and not send_bytes:
+        warnings.append("image/scan not sent to AI without a description (sensitive categories)")
     inp = ClassificationInput(
         description=doc.description,
         extracted_text=text,
@@ -132,7 +139,7 @@ def classify(
         mime_type=doc.mime_type,
         extension=doc.extension,
         allowed_categories=names,
-        media_bytes=data if (use_ai and not text) else None,
+        media_bytes=data if send_bytes else None,
     )
     raw: RawClassification
     classifier_name = "rules"
@@ -218,6 +225,7 @@ def process_document(db: Session, job: Job) -> None:
         stored = storage.find_by_document_id(str(doc.id))
         reconciled = stored is not None
         if stored is None:
+            queue.ensure_lease(job)
             folder_id = storage.ensure_folder_path(folder_path)
             stored = storage.upload(
                 data=blob.data,

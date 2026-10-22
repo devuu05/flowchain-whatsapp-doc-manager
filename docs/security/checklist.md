@@ -37,6 +37,11 @@ Legend: ✅ implemented + automated test · 🟡 implemented, not automatically 
 | Container runs as non-root | ✅ | verified with `docker exec id` (uid 999) |
 | Platform-admin access to all tenants | 🟡 | by design for the operator; every action is audited. Restrict the number of platform admins. |
 | Signed media URL is a bearer token for ≤10 min | 🟡 | inherent to Wasender's send-by-URL; tokens are single-document, tenant-bound, rate-limited |
+| Lease fencing before external side effects (no double sends) | ✅ | `test_lost_lease_prevents_second_send` |
+| OAuth flow bound to initiating session; Drive root revalidated | ✅ | `test_oauth_callback_requires_same_session`, `test_reconnect_with_other_account_creates_new_root` |
+| Spoof-resistant client IP (`TRUSTED_PROXY_HOPS`) | ✅ | `test_forwarded_for_uses_rightmost_trusted_hop` |
+| Account-lockout DoS resistance (per email+IP, then per account) | ✅ | `test_lockout_is_per_ip_before_per_account` |
+| Adding a user to a workspace without their consent | 🟡 | minimal data disclosed; an invite/accept flow is recommended before multi-client use |
 | MFA for dashboard users | ⛔ | not implemented — recommended before onboarding more clients |
 | Email-based password reset | ⛔ | not implemented; admins set initial passwords and users change them |
 | Distributed rate limiting (multi-instance) | ⛔ | needed only when scaling beyond one API instance |

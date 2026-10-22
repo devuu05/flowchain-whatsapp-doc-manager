@@ -46,6 +46,9 @@ def ingest_events(
     now = utcnow()
     for ev in events:
         reason = _ignore_reason(ev)
+        normalized = ev.model_dump(mode="json")
+        if reason and normalized.get("media"):
+            normalized["media"]["provider_ref"] = {}
         stmt = (
             insert(InboundEvent)
             .values(
@@ -56,7 +59,7 @@ def ingest_events(
                 sender=ev.sender,
                 status=InboundStatus.ignored if reason else InboundStatus.received,
                 ignore_reason=reason,
-                normalized=ev.model_dump(mode="json"),
+                normalized=normalized,
                 raw_payload=raw,
                 created_at=now,
                 updated_at=now,

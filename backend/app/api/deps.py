@@ -22,8 +22,19 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
 def client_ip(request: Request) -> str | None:
-    # uvicorn --proxy-headers rewrites request.client from X-Forwarded-For only for proxies in
-    # FORWARDED_ALLOW_IPS, so a client cannot spoof this value. Used for audit/rate limits only.
+    """Client address for audit logs and rate limits (never for authorization).
+
+    With TRUSTED_PROXY_HOPS=N, the N-th entry from the RIGHT of X-Forwarded-For is used: those
+    entries were appended by our own proxies, while entries further left are client-supplied
+    and spoofable. With 0 hops the socket peer is used.
+    """
+    hops = get_settings().trusted_proxy_hops
+    if hops > 0:
+        parts = [
+            p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()
+        ]
+        if len(parts) >= hops:
+            return parts[-hops][:64]
     return request.client.host[:64] if request.client else None
 
 

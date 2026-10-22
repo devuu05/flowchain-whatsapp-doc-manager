@@ -13,8 +13,10 @@ see files/folders it created. Files are never shared or made public by the app.
    `drive.file` is non-sensitive, so publishing does not require Google's verification review
    (the user sees an "unverified app" notice until branding verification, if any, is done).
 5. *Credentials → Create credentials → OAuth client ID → Web application*.
-   Authorized redirect URI: `https://<your-api-domain>/api/v1/integrations/google/callback`
-   (local: `http://localhost:8000/api/v1/integrations/google/callback`).
+   Authorized redirect URI: `https://<your-dashboard-domain>/api/v1/integrations/google/callback`
+   (local: `http://localhost:3000/api/v1/integrations/google/callback`). It points at the
+   dashboard, which proxies to the API, so the callback runs in the admin's signed-in session —
+   the flow must be finished in the same browser session that started it.
 6. Put the client ID/secret into the hosting provider's environment variables
    `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (never in git, never in chat).
 

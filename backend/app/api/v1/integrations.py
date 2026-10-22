@@ -5,13 +5,13 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
 from app.api.deps import DB, Admin, Member
 from app.core.config import get_settings
-from app.core.errors import AppError, Conflict, NotFound
+from app.core.errors import AppError, Conflict, NotAuthenticated, NotFound
 from app.db.base import utcnow
 from app.models import (
     IntegrationConfig,
@@ -26,9 +26,16 @@ from app.providers.errors import ProviderError
 from app.providers.storage import google_oauth
 from app.providers.storage.google_drive import GoogleDriveStorage
 from app.schemas.api import IntegrationOut, OAuthStartOut, WhatsAppConnectIn
-from app.security.crypto import decrypt_json, encrypt_json, new_token
+from app.security.crypto import (
+    constant_time_equals,
+    decrypt_json,
+    encrypt_json,
+    hmac_hex,
+    new_token,
+)
 from app.security.signed_urls import sign, verify
 from app.services import audit
+from app.services.auth import resolve_session
 from app.services.tenancy import normalize_phone
 
 router = APIRouter(tags=["integrations"])
@@ -65,7 +72,11 @@ def list_integrations(ctx: Member, db: DB) -> list[IntegrationOut]:
         .where(IntegrationConfig.tenant_id == ctx.tenant_id)
         .order_by(IntegrationConfig.created_at)
     )
-    return [_out(r) for r in rows]
+    out = [_out(r) for r in rows]
+    if ctx.role == Role.member:
+        for o in out:
+            o.webhook_url = None  # contains the connection key; admins only
+    return out
 
 
 @router.post(
@@ -198,12 +209,24 @@ def disconnect(integration_id: uuid.UUID, ctx: Admin, db: DB) -> Response:
 
 
 # ---- Google Drive OAuth -----------------------------------------------------------------
+def _session_binding(session_token_hash: str) -> str:
+    return hmac_hex("oauth-session", session_token_hash)[:32]
+
+
 @router.post("/tenants/{tenant_id}/integrations/google/start", response_model=OAuthStartOut)
 def google_start(ctx: Admin) -> OAuthStartOut:
     s = get_settings()
     if not s.google_client_id or not s.google_client_secret.get_secret_value():
         raise AppError("Google OAuth is not configured on the server", code="oauth_unconfigured")
-    state = sign("google_oauth", {"t": str(ctx.tenant_id), "u": str(ctx.user.id)}, 600)
+    state = sign(
+        "google_oauth",
+        {
+            "t": str(ctx.tenant_id),
+            "u": str(ctx.user.id),
+            "s": _session_binding(ctx.auth.session.token_hash),
+        },
+        600,
+    )
     return OAuthStartOut(authorization_url=google_oauth.build_authorization_url(state))
 
 
@@ -216,6 +239,7 @@ def _redirect(status: str, tenant_id: uuid.UUID | None = None) -> RedirectRespon
 
 @router.get("/integrations/google/callback", include_in_schema=False)
 def google_callback(
+    request: Request,
     db: DB,
     state: str = Query(max_length=1000),
     code: str | None = Query(default=None, max_length=2000),
@@ -225,6 +249,16 @@ def google_callback(
     if data is None:
         return _redirect("invalid_state")
     tenant_id, user_id = uuid.UUID(data["t"]), uuid.UUID(data["u"])
+    # The flow must finish in the same signed-in browser session that started it, so a
+    # consent link cannot be handed to someone else to attach their Drive to this tenant.
+    try:
+        _, sess = resolve_session(db, request.cookies.get(get_settings().session_cookie_name))
+    except NotAuthenticated:
+        return _redirect("session_mismatch", tenant_id)
+    if sess.user_id != user_id or not constant_time_equals(
+        str(data.get("s", "")), _session_binding(sess.token_hash)
+    ):
+        return _redirect("session_mismatch", tenant_id)
     if error or not code:
         return _redirect("denied", tenant_id)
     user = db.get(User, user_id)
@@ -249,6 +283,10 @@ def google_callback(
             return _redirect("no_refresh_token", tenant_id)
         cfg = registry.drive_config(db, tenant_id)
         root_id = cfg.settings.get("root_folder_id") if cfg else None
+        # Reuse the previous root only if the newly authorized account can reach it
+        # (with drive.file a different Google account cannot see the old folder).
+        if root_id and not GoogleDriveStorage.folder_accessible(tokens.access_token, root_id):
+            root_id = None
         if not root_id:
             root_id = GoogleDriveStorage.create_root_folder(tokens.access_token, DRIVE_ROOT_NAME)
     except ProviderError as exc:

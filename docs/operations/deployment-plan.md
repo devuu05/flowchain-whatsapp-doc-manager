@@ -29,7 +29,7 @@ Hosting facts and limits: `docs/operations/hosting.md`.
 2. **Secrets** (generate locally): `SECRET_KEY` (`python -c "import secrets;print(secrets.token_urlsafe(48))"`),
    `FIELD_ENCRYPTION_KEYS` (`uv run python -m app.cli gen-key`). Store in a password manager.
 3. **Google OAuth** client per `docs/setup/google-drive.md` with redirect
-   `https://<api-host>/api/v1/integrations/google/callback`; publish consent screen.
+   `https://<dashboard-host>/api/v1/integrations/google/callback` (the callback is proxied by the dashboard so the session cookie is present); publish consent screen.
 4. **Render**: New → Blueprint → point at the GitHub repo → review `infra/deployment/render.yaml`
    → fill `sync: false` env vars in the dashboard (never in git). Choose plan per option A/B.
    Deploy API first; confirm `GET https://<api>/health/ready` returns `{"status":"ok"}`.
@@ -51,7 +51,7 @@ Hosting facts and limits: `docs/operations/hosting.md`.
 | `PUBLIC_BASE_URL` | ✔ | public HTTPS URL of the API (webhooks, signed URLs, OAuth) |
 | `DASHBOARD_URL` | ✔ | for OAuth redirect back |
 | `EMBEDDED_WORKER` | ✔ | `true` on single-service hosting |
-| `FORWARDED_ALLOW_IPS` | ✔ | proxy IPs allowed to set X-Forwarded-For (Render: `*`, as only Render's proxy can reach the container) |
+| `TRUSTED_PROXY_HOPS` | ✔ | number of proxies appending to X-Forwarded-For (Render: `1`; verify by checking audit IPs after deploy). Never trust the left-most XFF value |
 | `RUN_MIGRATIONS_ON_START` | ✔ (free tier) | or run `migrate` as a pre-deploy step on paid plans |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | ✔ | |
 | `GEMINI_API_KEY` | optional | billed project only |

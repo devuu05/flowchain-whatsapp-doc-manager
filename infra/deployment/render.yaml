@@ -16,7 +16,7 @@ services:
       - { key: RUN_MIGRATIONS_ON_START, value: "true" }
       - { key: COOKIE_SECURE, value: "true" }
       - { key: ALLOW_FAKE_PROVIDERS, value: "false" }
-      - { key: FORWARDED_ALLOW_IPS, value: "*" }   # Render's proxy terminates TLS in front of the app
+      - { key: TRUSTED_PROXY_HOPS, value: "1" }     # Render proxy appends the client IP to X-Forwarded-For (verify after deploy)
       - { key: LOG_JSON, value: "true" }
       - { key: DATABASE_URL, sync: false }          # Supabase pooler URL (postgresql+psycopg://...)
       - { key: SECRET_KEY, sync: false }

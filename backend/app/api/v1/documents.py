@@ -12,7 +12,7 @@ from sqlalchemy import func, or_, select
 from app.api.deps import DB, Admin, Member
 from app.core.config import get_settings
 from app.core.errors import AppError, Conflict, NotFound
-from app.models import Category, Document, DocumentStatus, Job, JobStatus
+from app.models import Category, Document, DocumentStatus, InboundEvent, Job, JobStatus
 from app.providers import registry
 from app.providers.errors import ProviderError
 from app.schemas.api import (
@@ -267,6 +267,15 @@ def retry_job(job_id: uuid.UUID, ctx: Admin, db: DB) -> Job:
     if job.status != JobStatus.dead:
         raise Conflict("Only dead jobs can be retried")
     retry_dead_job(db, job)
+    if job.kind == "handle_inbound":
+        ev = db.scalar(
+            select(InboundEvent).where(
+                InboundEvent.id == uuid.UUID(job.payload["inbound_event_id"]),
+                InboundEvent.tenant_id == ctx.tenant_id,
+            )
+        )
+        if ev is not None and ev.status == "failed":
+            ev.status = "received"
     if job.document_id:
         doc = db.get(Document, job.document_id)
         if (
