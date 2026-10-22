@@ -668,3 +668,48 @@ def test_tenants_with_separate_connections_are_isolated(client: TestClient, db: 
     post_events(client, a, text_event(b.sender, "find all documents"))
     drain()
     assert a.fake_wa.sent == []
+
+
+def test_concurrent_messages_from_same_sender_are_serialized(
+    client: TestClient, db: Session, world: World
+) -> None:
+    """Two descriptions racing for one pending file: exactly one wins, the other sees no pending."""
+    import threading
+
+    from app.workers import runner
+
+    post_events(
+        client,
+        world,
+        media_event(world.sender, INVOICE_PDF, filename="a.pdf", mime="application/pdf"),
+    )
+    drain()
+    post_events(
+        client,
+        world,
+        text_event(world.sender, "invoice from ABC Traders"),
+        text_event(world.sender, "receipt from Dev Construction"),
+    )
+    barrier = threading.Barrier(2)
+
+    def work(n: int) -> None:
+        barrier.wait()
+        runner.run_one(f"w{n}")
+
+    threads = [threading.Thread(target=work, args=(i,)) for i in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    drain()
+    [doc] = docs(db, world)
+    assert doc.status == DocumentStatus.stored
+    process_jobs = db.query(Job).filter(Job.kind == "process_document").count()
+    assert process_jobs == 1
+    assert any(
+        "no files waiting" in t
+        or "didn't understand" in t
+        or "No documents" in t
+        or "result(s)" in t
+        for t in sent_texts(world)
+    )

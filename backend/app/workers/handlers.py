@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.db.base import utcnow
@@ -66,6 +66,15 @@ def handle_inbound(db: Session, job: Job) -> None:
         )
         return
     assert ev.sender is not None
+    # Serialize processing per (tenant, sender) so concurrent workers cannot race on the same
+    # pending file or result list. Released automatically at transaction end.
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+        {"k": f"conv:{tenant.id}:{ev.sender}"},
+    )
+    db.refresh(ev_row)
+    if ev_row.status != InboundStatus.received:
+        return
     ctx = conversation.Ctx(db=db, tenant=tenant, conn=conn, sender=ev.sender, event=ev_row)
     if ev.media is not None:
         conversation.handle_media(ctx, ev)
