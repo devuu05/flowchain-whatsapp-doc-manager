@@ -67,7 +67,13 @@ def configure_logging(level: str = "INFO", json_logs: bool = True) -> None:
     # httpx logs full URLs at INFO (could include query-string keys); keep it quiet.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    for name in ("uvicorn", "uvicorn.error"):
         lg = logging.getLogger(name)
         lg.handlers = []
         lg.propagate = True
+    # uvicorn's access log prints full URLs incl. query strings (OAuth codes) and signed media
+    # paths. Our own request logger (core/middleware.py) records requests with those masked.
+    access = logging.getLogger("uvicorn.access")
+    access.handlers = []
+    access.propagate = False
+    access.disabled = True

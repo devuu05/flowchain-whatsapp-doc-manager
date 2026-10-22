@@ -127,3 +127,14 @@ def test_fake_providers_refused_when_disabled(world: World, monkeypatch) -> None
     monkeypatch.setattr(get_settings(), "allow_fake_providers", False)
     with pytest.raises(ProviderError):
         registry.whatsapp_for(world.conn)
+
+
+def test_uvicorn_access_log_disabled_after_logging_setup() -> None:
+    import logging
+
+    from app.core.logging import configure_logging
+
+    configure_logging("INFO", json_logs=True)
+    access = logging.getLogger("uvicorn.access")
+    # uvicorn enables its access log when the logger has handlers (incl. via propagation).
+    assert access.disabled and not access.propagate and not access.hasHandlers()
