@@ -232,7 +232,7 @@ def google_start(ctx: Admin) -> OAuthStartOut:
 def _redirect(status: str, tenant_id: uuid.UUID | None = None) -> RedirectResponse:
     base = get_settings().dashboard_url
     if tenant_id is None:
-        return RedirectResponse(f"{base}/?drive={status}", status_code=303)
+        return RedirectResponse(f"{base}/app?drive={status}", status_code=303)
     return RedirectResponse(f"{base}/t/{tenant_id}/settings/drive?result={status}", status_code=303)
 
 

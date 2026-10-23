@@ -49,3 +49,4 @@ services:
       - { key: DASHBOARD_TRUSTED_PROXY_HOPS, value: "1" }
       - { key: BACKEND_URL, sync: false }         # https://flowchain-api.onrender.com
       - { key: PROXY_SHARED_SECRET, sync: false } # same value as on the API
+      - { key: CONTACT_EMAIL, sync: false }       # optional: shows "Request a pilot" on the landing page

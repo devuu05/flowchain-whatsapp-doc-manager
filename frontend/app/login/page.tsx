@@ -10,7 +10,7 @@ import type { Me } from "@/lib/types";
 
 function safeNext(next: string | null): string {
   // Only allow same-site relative paths to prevent open redirects.
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/login")) return "/";
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/login") || next === "/") return "/app";
   return next;
 }
 

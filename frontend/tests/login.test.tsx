@@ -35,7 +35,7 @@ describe("login", () => {
     await userEvent.type(screen.getByLabelText("Email"), "a@b.co");
     await userEvent.type(screen.getByLabelText("Password"), "x");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/app"));
   });
 
   it("shows the error and clears the password on failure", async () => {

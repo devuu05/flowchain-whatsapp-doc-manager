@@ -38,7 +38,7 @@ export function AppShell({ tenantId, children }: { tenantId: string; children: R
     return (
       <main id="main" className="center-page">
         <EmptyState title="Workspace not found">You don&apos;t have access to this workspace.</EmptyState>
-        <Link className="btn" href="/">Back</Link>
+        <Link className="btn" href="/app">Back</Link>
       </main>
     );
   }

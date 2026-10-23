@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, post, setCsrfToken } from "@/lib/api";
 import type { Me } from "@/lib/types";
@@ -15,7 +15,10 @@ interface AuthValue {
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
-const PUBLIC_PATHS = ["/login"];
+// Pages anyone may view. The marketing home page never calls the API (so it does not wake a
+// sleeping free-tier backend for every visitor).
+const MARKETING_PATHS = ["/"];
+const PUBLIC_PATHS = ["/login", ...MARKETING_PATHS];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMeState] = useState<Me | null>(null);
@@ -43,7 +46,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loadMe();
   }, [loadMe]);
 
+  const isMarketing = MARKETING_PATHS.includes(pathname);
+  const attempted = useRef(false);
+
   useEffect(() => {
+    if (isMarketing || attempted.current) return;
+    attempted.current = true;
     let active = true;
     api<Me>("/auth/me")
       .then((m) => active && setMe(m))
@@ -54,8 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
+      attempted.current = false; // allow the re-run (React strict mode) to fetch again
     };
-  }, [setMe]);
+  }, [setMe, isMarketing]);
 
   useEffect(() => {
     const onUnauthorized = () => setMe(null);
