@@ -71,7 +71,10 @@ def bootstrap_from_env(db: Session, env: dict[str, str] | None = None) -> dict[s
             tenant = db.scalar(select(Tenant).where(Tenant.name == tenant_name))
 
     if tenant is not None:
-        for raw in e.get("BOOTSTRAP_SENDER_PHONES", "").split(","):
+        # BOOTSTRAP_ADMIN_PHONES become WhatsApp admins (may rename/delete documents).
+        phones = [("member", raw) for raw in e.get("BOOTSTRAP_SENDER_PHONES", "").split(",")]
+        phones += [("admin", raw) for raw in e.get("BOOTSTRAP_ADMIN_PHONES", "").split(",")]
+        for role, raw in phones:
             if not raw.strip():
                 continue
             try:
@@ -79,14 +82,16 @@ def bootstrap_from_env(db: Session, env: dict[str, str] | None = None) -> dict[s
             except ValueError:
                 log.warning("bootstrap_invalid_phone")
                 continue
-            exists = db.scalar(
-                select(AuthorizedSender.id).where(
+            existing = db.scalar(
+                select(AuthorizedSender).where(
                     AuthorizedSender.tenant_id == tenant.id, AuthorizedSender.phone == phone
                 )
             )
-            if exists is None:
-                add_authorized_sender(db, tenant.id, phone, "bootstrap")
+            if existing is None:
+                add_authorized_sender(db, tenant.id, phone, "bootstrap", role)
                 result["senders_added"] = int(result["senders_added"]) + 1  # type: ignore[call-overload]
+            elif role == "admin" and existing.role != "admin":
+                existing.role = "admin"
     db.commit()
     if any(result.values()):
         log.info("bootstrap_applied", extra={k: v for k, v in result.items()})

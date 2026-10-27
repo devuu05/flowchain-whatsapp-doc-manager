@@ -13,7 +13,7 @@ const NAV: { href: string; label: string; admin?: boolean }[] = [
   { href: "/documents", label: "Documents" },
   { href: "/failures", label: "Failures" },
   { href: "/settings/whatsapp", label: "WhatsApp", admin: true },
-  { href: "/settings/drive", label: "Google Drive", admin: true },
+  { href: "/settings/drive", label: "Cloud storage", admin: true },
   { href: "/settings/ai", label: "AI & categories", admin: true },
   { href: "/members", label: "Members & senders", admin: true },
   { href: "/usage", label: "Usage" },

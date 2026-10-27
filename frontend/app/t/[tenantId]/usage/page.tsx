@@ -34,7 +34,7 @@ export default function UsagePage() {
           </section>
           <section className="stats">
             <Stat label="WhatsApp messages sent" value={data.messages_sent_this_month} />
-            <Stat label="Stored this month" value={formatBytes(data.storage_bytes_this_month)} hint="in Google Drive" />
+            <Stat label="Stored this month" value={formatBytes(data.storage_bytes_this_month)} hint="in cloud storage" />
             <Stat label="Temporary files held" value={formatBytes(data.transient_blob_bytes)} hint="awaiting processing" />
             <Stat label="AI processing" value={data.ai_enabled ? "On" : "Off"} hint={data.ai_provider_configured ? undefined : "no provider key"} />
           </section>

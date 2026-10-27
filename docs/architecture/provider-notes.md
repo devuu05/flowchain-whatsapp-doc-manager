@@ -49,6 +49,22 @@ Design consequences:
 - The webhook parser is defensive: unknown event types are recorded and ignored; messages with
   `fromMe=true` are ignored (prevents reply loops); group messages are ignored for the pilot.
 
+## OneDrive (Microsoft Graph v1.0, httpx)
+Source: learn.microsoft.com Graph and identity-platform docs as known at build time; the live
+service has **NOT** been exercised (mocked tests only).
+- OAuth 2.0 authorization code flow, `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/
+  {authorize,token}`, scopes `offline_access User.Read Files.ReadWrite`; refresh tokens rotate.
+- Folders: `GET /me/drive/items/{parent}:/{name}` (404 → create with
+  `POST /me/drive/items/{parent}/children` `{"folder":{}, "@microsoft.graph.conflictBehavior":"fail"}`).
+- Upload ≤ 4 MB: `PUT /me/drive/items/{folder}:/{name}:/content?@microsoft.graph.conflictBehavior=rename`;
+  larger: `POST …:/createUploadSession`, then `PUT` chunks (multiples of 320 KiB) to `uploadUrl`
+  **without** the Authorization header.
+- No custom properties on driveItems → idempotency by name + size + `file.hashes.quickXorHash`
+  (algorithm checked against the `quickxorhash` reference package).
+- Download: item `@microsoft.graph.downloadUrl` (short-lived, pre-authenticated).
+- Rename: `PATCH /me/drive/items/{id}` `{name}` (409 on conflict). Delete: `DELETE` → recycle bin.
+- Throttling: 429/503 with `Retry-After` → transient.
+
 ## Google Drive (REST v3, httpx)
 - OAuth 2.0 authorization-code flow with `access_type=offline`, `prompt=consent`.
 - Scope: `https://www.googleapis.com/auth/drive.file` (non-sensitive; app can only see files it

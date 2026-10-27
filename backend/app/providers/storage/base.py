@@ -39,6 +39,10 @@ class DocumentStorage(ABC):
     def get_metadata(self, file_id: str) -> StoredFile: ...
 
     @abstractmethod
+    def rename(self, file_id: str, new_name: str) -> StoredFile:
+        """Rename a stored file in place (same folder)."""
+
+    @abstractmethod
     def trash(self, file_id: str) -> None: ...
 
     @abstractmethod

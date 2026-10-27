@@ -211,7 +211,12 @@ def process_document(db: Session, job: Job) -> None:
     period = classified.period
     if period is not None and getattr(period, "start", None):
         year = str(period.start.year)  # type: ignore[attr-defined]
-    folder_path = [classified.category.folder_name, year or "Undated"]
+    # The sender may pick the folder ("#Invoices/2026" caption); otherwise category/year.
+    chosen = doc.meta.get("target_folder") if isinstance(doc.meta, dict) else None
+    if isinstance(chosen, list) and chosen and all(isinstance(p, str) and p for p in chosen):
+        folder_path = [str(p) for p in chosen]
+    else:
+        folder_path = [classified.category.folder_name, year or "Undated"]
     filename = build_standard_filename(
         document_type=classified.document_type,
         company=classified.company,

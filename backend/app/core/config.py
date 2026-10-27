@@ -85,6 +85,14 @@ class Settings(BaseSettings):
     google_oauth_scopes: str = "https://www.googleapis.com/auth/drive.file"
     google_timeout_seconds: float = 60.0
 
+    # Microsoft OAuth / OneDrive (personal or work/school accounts)
+    microsoft_client_id: str = ""
+    microsoft_client_secret: SecretStr = SecretStr("")
+    # "common" accepts personal and work accounts; "consumers" = personal only.
+    microsoft_tenant: str = "common"
+    microsoft_oauth_scopes: str = "offline_access User.Read Files.ReadWrite"
+    microsoft_timeout_seconds: float = 60.0
+
     # Gemini
     gemini_api_key: SecretStr = SecretStr("")
     gemini_model: str = "gemini-3.5-flash-lite"
@@ -127,6 +135,11 @@ class Settings(BaseSettings):
         # Routed through the dashboard's same-origin /api proxy so the browser sends the
         # session cookie; the callback requires the same session that started the flow.
         return f"{self.dashboard_url}/api/v1/integrations/google/callback"
+
+    @property
+    def microsoft_redirect_uri(self) -> str:
+        # Same-origin dashboard proxy, for the same reason as the Google callback.
+        return f"{self.dashboard_url}/api/v1/integrations/microsoft/callback"
 
 
 @lru_cache

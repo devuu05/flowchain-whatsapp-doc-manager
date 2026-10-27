@@ -128,7 +128,7 @@ export interface Usage {
 
 export interface Integration {
   id: string;
-  kind: "whatsapp" | "google_drive";
+  kind: "whatsapp" | "google_drive" | "onedrive";
   provider: string;
   name: string;
   status: string;
@@ -149,11 +149,14 @@ export interface Member {
   last_login_at: string | null;
 }
 
+export type SenderRole = "member" | "admin";
+
 export interface Sender {
   id: string;
   phone: string;
   display_name: string;
   is_active: boolean;
+  role: SenderRole;
   created_at: string;
 }
 

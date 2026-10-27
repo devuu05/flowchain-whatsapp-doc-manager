@@ -20,6 +20,7 @@ Status legend: ☑ done (tests executed and passing) · ◐ done with documented
 | 13 | Deployment plan | ⚠ | Plan + blueprint ready; **deploying requires your approval and accounts** |
 | 14 | Pilot test suite & report | ◐ | Automated suite done; manual provider tests NOT RUN (credentials) |
 | 15 | Pilot onboarding docs | ☑ | Runbook, incident response, rollback, onboarding checklist |
+| 16 | OneDrive storage, WhatsApp admin roles, guided chat, 24/7 hosting | ⚠ | OneDrive adapter + Microsoft OAuth (mocked tests; QuickXorHash checked against reference lib); sender roles + `conversation_states` (migration 0002); menu, `#Folder` captions, admin rename/delete with YES confirmation (e2e with FAKE providers); API on Render Starter. **Live OneDrive test needs an Entra app registration** |
 
 ## Functional-completeness criteria (from the brief)
 | # | Criterion | Status |

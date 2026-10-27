@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.base import utcnow
 from app.db.session import get_sessionmaker
-from app.models import IntegrationConfig, IntegrationKind, IntegrationStatus, Tenant
+from app.models import IntegrationConfig, IntegrationStatus, Tenant
+from app.models.integrations import STORAGE_KINDS
 from app.providers.ai.base import DocumentClassifier
 from app.providers.ai.gemini import GeminiClassifier
 from app.providers.ai.rules import RulesClassifier
@@ -25,6 +26,7 @@ from app.providers.errors import ProviderError
 from app.providers.storage.base import DocumentStorage
 from app.providers.storage.fake import FakeStorage
 from app.providers.storage.google_drive import GoogleDriveStorage
+from app.providers.storage.onedrive import OneDriveStorage
 from app.providers.whatsapp.base import WhatsAppProvider
 from app.providers.whatsapp.fake import FakeWhatsAppProvider
 from app.providers.whatsapp.wasender import WasenderProvider
@@ -101,7 +103,7 @@ def drive_config(db: Session, tenant_id: uuid.UUID) -> IntegrationConfig | None:
     return db.scalar(
         select(IntegrationConfig).where(
             IntegrationConfig.tenant_id == tenant_id,
-            IntegrationConfig.kind == IntegrationKind.google_drive,
+            IntegrationConfig.kind.in_(STORAGE_KINDS),
             IntegrationConfig.status.in_([IntegrationStatus.connected, IntegrationStatus.error]),
         )
     )
@@ -124,7 +126,9 @@ def storage_for(db: Session, tenant_id: uuid.UUID) -> tuple[DocumentStorage, Int
     cfg = drive_config(db, tenant_id)
     if cfg is None:
         raise ProviderError(
-            "Google Drive is not connected for this workspace", provider="storage", transient=False
+            "No cloud storage (OneDrive or Google Drive) is connected for this workspace",
+            provider="storage",
+            transient=False,
         )
     if "storage" in _overrides:
         storage: DocumentStorage = _overrides["storage"](cfg)
@@ -139,6 +143,19 @@ def storage_for(db: Session, tenant_id: uuid.UUID) -> tuple[DocumentStorage, Int
                 root_folder_id=root,
                 on_tokens_refreshed=_persist_refreshed_tokens(cfg.id),
                 timeout=get_settings().google_timeout_seconds,
+            ),
+            cfg,
+        )
+    if cfg.provider == "onedrive":
+        root = cfg.settings.get("root_folder_id")
+        if not root:
+            raise ProviderError("OneDrive root folder missing", provider="storage", transient=False)
+        return (
+            OneDriveStorage(
+                secrets=decrypt_json(cfg.encrypted_secrets),
+                root_folder_id=root,
+                on_tokens_refreshed=_persist_refreshed_tokens(cfg.id),
+                timeout=get_settings().microsoft_timeout_seconds,
             ),
             cfg,
         )

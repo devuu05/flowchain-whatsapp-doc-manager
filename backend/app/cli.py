@@ -3,7 +3,8 @@
 Commands:
   create-admin --email E [--name N]          create a platform admin (password via stdin)
   create-tenant --name N [--owner-email E]   provision a tenant with default categories
-  add-sender --tenant-slug S --phone P       authorize a WhatsApp sender number
+  add-sender --tenant-slug S --phone P [--admin]  authorize a WhatsApp sender number
+                                             (--admin may rename/delete from WhatsApp)
   gen-key                                    print a new Fernet key for FIELD_ENCRYPTION_KEYS
   rotate-keys                                re-encrypt integration secrets with the first key
   sweep                                      run maintenance once
@@ -48,6 +49,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--tenant-slug", required=True)
     s.add_argument("--phone", required=True)
     s.add_argument("--name", default="")
+    s.add_argument("--admin", action="store_true", help="WhatsApp admin (rename/delete)")
     sub.add_parser("gen-key")
     sub.add_parser("rotate-keys")
     sub.add_parser("sweep")
@@ -88,8 +90,10 @@ def main(argv: list[str] | None = None) -> None:
             found = db.scalar(select(Tenant).where(Tenant.slug == args.tenant_slug))
             if found is None:
                 sys.exit("Tenant not found")
-            add_authorized_sender(db, found.id, args.phone, args.name)
-            print("Sender authorized")
+            add_authorized_sender(
+                db, found.id, args.phone, args.name, "admin" if args.admin else "member"
+            )
+            print("Sender authorized" + (" as WhatsApp admin" if args.admin else ""))
         elif args.cmd == "rotate-keys":
             n = 0
             for cfg in db.scalars(

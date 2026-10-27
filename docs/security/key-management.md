@@ -5,6 +5,7 @@
 | `SECRET_KEY` (≥32 chars) | host env var | Rotating invalidates CSRF tokens, signed media URLs and OAuth state (users re-login) |
 | `FIELD_ENCRYPTION_KEYS` (Fernet, comma separated) | host env var | Prepend new key → deploy → `python -m app.cli rotate-keys` → remove old key → deploy |
 | `GOOGLE_CLIENT_SECRET` | host env var | Create new secret in Cloud Console, update env, delete old |
+| `MICROSOFT_CLIENT_SECRET` | host env var | Expires (max 24 months): Entra → App registrations → Certificates & secrets → new secret, update env, delete old |
 | `GEMINI_API_KEY` | host env var | Regenerate in AI Studio, update env |
 | Wasender API key / webhook secret | encrypted in `integration_configs.encrypted_secrets` | Regenerate in Wasender, then dashboard → WhatsApp → update (PATCH endpoint) |
 | Google refresh tokens | encrypted in DB | Reconnect Drive; disconnect revokes |

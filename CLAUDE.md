@@ -23,10 +23,10 @@ backend/                FastAPI app (Python 3.12)
   app/models/           SQLAlchemy 2 ORM models
   app/schemas/          Pydantic request/response + internal event schemas
   app/repositories/     tenant-scoped query helpers (ALWAYS filter by tenant_id)
-  app/services/         business logic (intake, conversation, pipeline, search, ...)
+  app/services/         business logic (intake, conversation, guided chat, pipeline, search, ...)
   app/services/extraction/  DocumentExtractor implementations
   app/providers/whatsapp/   WhatsAppProvider interface + Wasender adapter + fake
-  app/providers/storage/    DocumentStorage interface + Google Drive adapter + fake
+  app/providers/storage/    DocumentStorage interface + Google Drive & OneDrive adapters + fake
   app/providers/ai/         DocumentClassifier interface + Gemini adapter + rules fallback
   app/workers/          Postgres-backed durable job queue, worker runner, job handlers
   app/security/         passwords, sessions, CSRF, encryption, redaction, rate limits

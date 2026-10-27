@@ -32,6 +32,22 @@ Preconditions: API deployed with public HTTPS; connection configured per `docs/s
 5. Reconnect; upload again; the earlier root folder is reused.
 6. After 8 days, uploads still work (proves the consent screen is *In production*, not *Testing*).
 
+## OneDrive
+1. Dashboard → Cloud storage → Connect OneDrive from a **phone** browser (not the server, not your
+   PC); Microsoft's consent screen lists "Have full access to your files", "Maintain access" and
+   "Sign you in and read your profile".
+2. "Flow Chain Documents" appears at the top of the OneDrive; a captioned upload lands in
+   `<Category>/<Year>/`; a `#Clients/Acme` caption lands in `Clients/Acme/`.
+3. Send a file > 4 MB → stored (upload session path).
+4. `find all documents` → `1` → the file arrives in WhatsApp (download via `downloadUrl`).
+5. As a WhatsApp admin: `rename 1 to Test rename` → name changes in OneDrive; `delete 1` → `YES`
+   → file is in the OneDrive recycle bin. As a member: both are refused.
+6. Leave it a day, send another file → still stored (rotated refresh token was persisted).
+
+## WhatsApp chat (any storage)
+1. `hi` → numbered menu; member sees 4 options, admin 6. `1` → latest documents; `3` → folders.
+2. Admin `delete 1`, then any other message, then `yes` → nothing deleted (confirmation closed).
+
 ## Gemini (only with a billed key and client consent)
 1. Enable AI for the test workspace with a consent note.
 2. Send a synthetic invoice image without text layer → document classified by `gemini` with sensible

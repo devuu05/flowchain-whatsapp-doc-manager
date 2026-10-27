@@ -1,13 +1,15 @@
 # Render Blueprint (must live at the repository root). NOT applied automatically:
 # Render dashboard -> New -> Blueprint -> select this repo. See docs/operations/render-deploy.md.
-# Plan "free": services sleep after ~15 min without traffic (cold start ~1 min).
+# The API runs on "starter" (~$7/month) so the WhatsApp bot answers 24/7: free services sleep
+# after ~15 min without traffic, and a WhatsApp message arriving while asleep can be lost.
+# The dashboard can stay on "free" (it is only needed for admin work; first load may be slow).
 services:
   - type: web
     name: flowchain-api
     runtime: docker
     dockerfilePath: infra/docker/backend.Dockerfile
     dockerContext: .
-    plan: free
+    plan: starter              # always on (24/7); set to free only for a trial
     region: singapore          # closest Render region to India
     healthCheckPath: /health
     autoDeploy: false          # deploy deliberately after CI passes
@@ -29,12 +31,16 @@ services:
       - { key: DASHBOARD_URL, sync: false }       # https://flowchain-dashboard.onrender.com
       - { key: GOOGLE_CLIENT_ID, sync: false }
       - { key: GOOGLE_CLIENT_SECRET, sync: false }
+      - { key: MICROSOFT_CLIENT_ID, sync: false }     # OneDrive, see docs/setup/onedrive.md
+      - { key: MICROSOFT_CLIENT_SECRET, sync: false }
+      - { key: MICROSOFT_TENANT, value: common }      # consumers = personal OneDrive only
       - { key: GEMINI_API_KEY, sync: false }      # optional; leave empty unless billed + consented
       # One-time first-run setup (no shell on the free plan). Delete these after first sign-in.
       - { key: BOOTSTRAP_ADMIN_EMAIL, sync: false }
       - { key: BOOTSTRAP_ADMIN_PASSWORD, sync: false }
       - { key: BOOTSTRAP_TENANT_NAME, sync: false }
       - { key: BOOTSTRAP_SENDER_PHONES, sync: false } # comma separated, with country code
+      - { key: BOOTSTRAP_ADMIN_PHONES, sync: false }  # WhatsApp admins (may rename/delete)
 
   - type: web
     name: flowchain-dashboard

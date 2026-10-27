@@ -109,12 +109,18 @@ class SenderOut(ORM):
     phone: str
     display_name: str
     is_active: bool
+    role: str
     created_at: datetime
 
 
 class SenderIn(BaseModel):
     phone: str = Field(min_length=8, max_length=24)
     display_name: str = Field(default="", max_length=120)
+    role: Literal["member", "admin"] = "member"
+
+
+class SenderPatch(BaseModel):
+    role: Literal["member", "admin"]
 
 
 class CategoryOut(ORM):

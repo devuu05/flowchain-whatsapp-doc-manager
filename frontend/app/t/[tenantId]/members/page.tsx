@@ -8,7 +8,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { ConfirmDialog, EmptyState, ErrorAlert, Field, Notice, Spinner } from "@/components/ui";
 import { del, patch, post } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
-import type { Member, Role, Sender } from "@/lib/types";
+import type { Member, Role, Sender, SenderRole } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
 export default function MembersPage() {
@@ -18,7 +18,7 @@ export default function MembersPage() {
   const members = useApi<Member[]>(`/tenants/${tenantId}/members`);
   const senders = useApi<Sender[]>(`/tenants/${tenantId}/senders`);
   const [form, setForm] = useState<{ email: string; full_name: string; role: Role; initial_password: string }>({ email: "", full_name: "", role: "member", initial_password: "" });
-  const [sender, setSender] = useState({ phone: "", display_name: "" });
+  const [sender, setSender] = useState<{ phone: string; display_name: string; role: SenderRole }>({ phone: "", display_name: "", role: "member" });
   const [remove, setRemove] = useState<Member | null>(null);
   const [err, setErr] = useState<unknown>();
   const [msg, setMsg] = useState<string>();
@@ -89,22 +89,33 @@ export default function MembersPage() {
       </section>
       <section className="card">
         <h2>Authorized WhatsApp senders</h2>
-        <p className="muted">Only these numbers can upload or retrieve documents over WhatsApp. Messages from other numbers are ignored.</p>
+        <p className="muted">Only these numbers can upload or retrieve documents over WhatsApp. Messages from other numbers are ignored. <strong>WhatsApp admins</strong> can also rename and delete documents from the chat.</p>
         {senders.data && senders.data.filter((s) => s.is_active).length === 0 && <EmptyState title="No authorized senders" />}
         <ul className="activity">
           {senders.data?.filter((s) => s.is_active).map((s) => (
             <li key={s.id}>
               +{s.phone} {s.display_name && <span className="muted">({s.display_name})</span>}{" "}
+              <label className="sr-only" htmlFor={`role-${s.id}`}>WhatsApp role for +{s.phone}</label>
+              <select id={`role-${s.id}`} value={s.role} onChange={(e) => void act(() => patch(`/tenants/${tenantId}/senders/${s.id}`, { role: e.target.value }), "Sender role updated.", senders.reload)}>
+                <option value="member">Member</option>
+                <option value="admin">WhatsApp admin</option>
+              </select>{" "}
               <button type="button" className="btn btn-small" onClick={() => act(() => del(`/tenants/${tenantId}/senders/${s.id}`), "Sender removed.", senders.reload)}>Remove</button>
             </li>
           ))}
         </ul>
         <form className="form-grid" onSubmit={(e) => {
           e.preventDefault();
-          void act(() => post(`/tenants/${tenantId}/senders`, sender), "Sender authorized.", senders.reload).then(() => setSender({ phone: "", display_name: "" }));
+          void act(() => post(`/tenants/${tenantId}/senders`, sender), "Sender authorized.", senders.reload).then(() => setSender({ phone: "", display_name: "", role: "member" }));
         }}>
           <Field label="Phone (with country code)">{(id) => <input id={id} required inputMode="tel" placeholder="+91 98765 43210" value={sender.phone} onChange={(e) => setSender({ ...sender, phone: e.target.value })} />}</Field>
           <Field label="Label">{(id) => <input id={id} value={sender.display_name} onChange={(e) => setSender({ ...sender, display_name: e.target.value })} />}</Field>
+          <Field label="WhatsApp role">{(id) => (
+            <select id={id} value={sender.role} onChange={(e) => setSender({ ...sender, role: e.target.value as SenderRole })}>
+              <option value="member">Member (save, find, receive)</option>
+              <option value="admin">Admin (also rename &amp; delete)</option>
+            </select>
+          )}</Field>
           <div className="row-end"><button type="submit" className="btn btn-primary">Authorize number</button></div>
         </form>
       </section>

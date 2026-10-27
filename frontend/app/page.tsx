@@ -8,7 +8,7 @@ import "./landing.css";
 export const metadata: Metadata = {
   title: "Flow Chain — WhatsApp Document Manager",
   description:
-    "Send business documents on WhatsApp. Flow Chain reads them, names them, files them in your own Google Drive and sends them back when you ask.",
+    "Send business documents on WhatsApp. Flow Chain reads them, names them, files them in your own OneDrive or Google Drive and sends them back when you ask.",
   robots: { index: true, follow: true },
 };
 
@@ -24,7 +24,7 @@ const STEPS = [
   {
     n: "2",
     title: "Flow Chain files it",
-    body: "It checks the file, reads it, names it properly (Invoice_ABC-Traders_2026-09-15.pdf) and saves the original into the right folder of your Google Drive — then confirms only once it is really saved.",
+    body: "It checks the file, reads it, names it properly (Invoice_ABC-Traders_2026-09-15.pdf) and saves the original into the right folder of your OneDrive or Google Drive — then confirms only once it is really saved.",
   },
   {
     n: "3",
@@ -41,7 +41,7 @@ const FEATURES = [
   },
   {
     icon: "🗂️",
-    title: "A tidy Google Drive, automatically",
+    title: "A tidy OneDrive or Google Drive, automatically",
     body: "Every file lands in Category / Year folders with a consistent name. The original file is kept exactly as sent.",
   },
   {
@@ -72,7 +72,7 @@ const CATEGORIES = ["Invoice", "Receipt", "Bill", "Cheque", "Purchase Order", "C
 const DASHBOARD = [
   "Search, filter and open every document, with corrections when details are wrong",
   "See failures and retry them in one click",
-  "Connect your WhatsApp number and Google Drive",
+  "Connect your WhatsApp number and OneDrive or Google Drive",
   "Choose categories and which ones may ever be sent to AI",
   "Add team members and decide which phone numbers may use the bot",
   "Usage and monthly limits at a glance",
@@ -94,7 +94,7 @@ const FAQ = [
   },
   {
     q: "Where are our documents stored?",
-    a: "In your own Google Drive, inside a “Flow Chain Documents” folder. Flow Chain keeps only the details needed for searching (type, company, date, file name), not the text of your documents.",
+    a: "In your own OneDrive or Google Drive, inside a “Flow Chain Documents” folder. Flow Chain keeps only the details needed for searching (type, company, date, file name), not the text of your documents.",
   },
   {
     q: "Who can send or request documents?",
@@ -151,7 +151,7 @@ export default function LandingPage() {
               <p className="lp-lead">
                 Flow Chain turns a WhatsApp number into your business&apos;s filing clerk. Your team sends invoices,
                 receipts, cheques and contracts as photos or files — Flow Chain reads them, names them properly, files
-                them in your own Google Drive, and sends any document back the moment someone asks.
+                them in your own OneDrive or Google Drive, and sends any document back the moment someone asks.
               </p>
               <div className="lp-cta">
                 <a href={pilotHref} className="lp-btn lp-btn-primary">{contact ? "Request a pilot" : "See how it works"}</a>
@@ -159,7 +159,7 @@ export default function LandingPage() {
               </div>
               <ul className="lp-ticks" aria-label="Highlights">
                 <li>No app to install</li>
-                <li>Files stay in your Google Drive</li>
+                <li>Files stay in your OneDrive or Google Drive</li>
                 <li>Private by default</li>
               </ul>
             </div>

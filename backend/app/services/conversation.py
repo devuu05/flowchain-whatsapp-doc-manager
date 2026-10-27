@@ -1,6 +1,7 @@
 """WhatsApp conversation handling: intake, pending descriptions, search and selection.
 
 Routing order for a text message (documented in docs/architecture/conversation.md):
+ 0. guided chat (app.services.guided): open step, menu, folders, admin rename/delete
  1. commands: help / cancel / skip / more
  2. explicit search request (starts with find/search/show/...)
  3. pending files awaiting a description
@@ -36,7 +37,7 @@ from app.models import (
 from app.providers import registry
 from app.providers.errors import ProviderError
 from app.schemas.events import NormalizedEvent
-from app.services import audit, outbox, search
+from app.services import audit, guided, outbox, search
 from app.services.file_validation import detect_and_validate
 from app.services.naming import sanitize_filename, split_extension
 from app.services.tenancy import active_categories
@@ -48,16 +49,22 @@ log = logging.getLogger(__name__)
 HELP_TEXT = (
     "👋 *Flow Chain Documents*\n"
     "• Send a photo, PDF or Office file with a short caption (e.g. _invoice from ABC Traders_).\n"
+    "• Choose the folder by starting the caption with #: _#Invoices/2026 bill from ABC_.\n"
     "• Find files: _find invoices from ABC Traders_, _find documents from September 2026_, "
     "_show my latest documents_.\n"
     "• Reply with a number from a result list to receive that file.\n"
+    "• _menu_ shows what I can do, _folders_ lists your folders.\n"
     "• _cancel_ discards files waiting for a description, _skip_ saves them without one."
+)
+ADMIN_HELP = (
+    "\n\n🔑 *Admin*: _rename 3 to New name_ and _delete 3_ work on the last result list "
+    "(delete asks you to confirm)."
 )
 NUMBER_ONLY = re.compile(r"^\s*#?(\d{1,3})\s*$")
 PENDING_ASSIGN = re.compile(r"^\s*#?(\d{1,2})\s*[:\-.)]\s*(.{2,})$", re.S)
 SKIP = re.compile(r"^\s*skip(?:\s+(all|\d{1,2}))?\s*$", re.I)
 CANCEL = re.compile(r"^\s*cancel(?:\s+(all|\d{1,2}))?\s*$", re.I)
-HELP = re.compile(r"^\s*(help|menu|hi|hello|hey|start|\?)\s*[!.]?\s*$", re.I)
+HELP = re.compile(r"^\s*(help|\?)\s*[!.]?\s*$", re.I)
 MORE = re.compile(r"^\s*(more|next)\s*$", re.I)
 UNSUPPORTED_MEDIA = {"video", "audio", "sticker"}
 
@@ -69,6 +76,7 @@ class Ctx:
     conn: IntegrationConfig
     sender: str
     event: InboundEvent
+    role: str = "member"
 
     def reply(
         self, text: str, key_suffix: str = "reply", document_id: uuid.UUID | None = None
@@ -249,6 +257,16 @@ def handle_media(ctx: Ctx, ev: NormalizedEvent) -> None:
         document_id=doc.id,
     )
 
+    caption = guided.parse_folder_caption(ev.text)
+    if caption.folder:
+        # The sender chose the folder: no description needed to file it.
+        doc.meta = {**doc.meta, "target_folder": caption.folder}
+        doc.description = caption.text[:1000] or None
+        enqueue_processing(db, doc)
+        ctx.reply(
+            f"📥 Received *{original}*. Saving it to 📁 {'/'.join(caption.folder)}…", "ack", doc.id
+        )
+        return
     if caption_is_usable(ev.text):
         doc.description = (ev.text or "")[:1000]
         enqueue_processing(db, doc)
@@ -354,8 +372,10 @@ def handle_text(ctx: Ctx, ev: NormalizedEvent) -> None:
     )
     categories = [c.name for c in active_categories(db, ctx.tenant.id)]
 
+    if guided.handle(ctx, text):
+        return
     if HELP.match(text):
-        ctx.reply(HELP_TEXT)
+        ctx.reply(HELP_TEXT + (ADMIN_HELP if ctx.role == "admin" else ""))
         return
     if m := CANCEL.match(text):
         _cancel_or_skip(ctx, m.group(1), skip=False)
@@ -393,7 +413,17 @@ def handle_text(ctx: Ctx, ev: NormalizedEvent) -> None:
     ctx.reply("🤔 I didn't understand that.\n\n" + HELP_TEXT)
 
 
+def run_free_text_search(ctx: Ctx, text: str) -> None:
+    """Search for whatever the sender typed after "Find a document" in the menu."""
+    categories = [c.name for c in active_categories(ctx.db, ctx.tenant.id)]
+    filters = search.parse_query(f"find {text}", categories, require_intent=True)
+    if filters is None or (filters.is_empty() and not filters.latest):
+        filters = search.SearchFilters(filename=text.strip()[:80])
+    _do_search(ctx, text, filters)
+
+
 def _do_search(ctx: Ctx, text: str, filters: search.SearchFilters) -> None:
+    guided.clear_state(ctx)  # a new list replaces any open menu/pick step
     page = search.create_search_session(
         ctx.db,
         tenant_id=ctx.tenant.id,
@@ -488,7 +518,8 @@ def _describe_pending(ctx: Ctx, pendings: list[PendingMedia], text: str) -> None
             ctx.reply(f"Please pick a file number between 1 and {len(pendings)}.")
             return
         target, description = pendings[idx - 1], m.group(2)
-    if not caption_is_usable(description):
+    caption = guided.parse_folder_caption(description)
+    if not caption.folder and not caption_is_usable(description):
         ctx.reply("Please send a few words describing the file.")
         return
     doc = db.get(Document, target.document_id)
@@ -496,7 +527,10 @@ def _describe_pending(ctx: Ctx, pendings: list[PendingMedia], text: str) -> None
         target.status = PendingStatus.cancelled
         return
     target.status = PendingStatus.resolved
-    doc.description = description.strip()[:1000]
+    if caption.folder:
+        doc.meta = {**doc.meta, "target_folder": caption.folder}
+        description = caption.text
+    doc.description = description.strip()[:1000] or None
     enqueue_processing(db, doc)
     remaining = len(pendings) - 1
     extra = f" {remaining} file(s) still need a description." if remaining else ""

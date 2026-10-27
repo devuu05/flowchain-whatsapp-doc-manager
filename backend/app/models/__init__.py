@@ -7,6 +7,7 @@ from app.models.integrations import (
     IntegrationConfig,
     IntegrationKind,
     IntegrationStatus,
+    SenderRole,
 )
 from app.models.messaging import (
     Direction,
@@ -16,7 +17,7 @@ from app.models.messaging import (
     OutboundStatus,
 )
 from app.models.ops import AuditEvent, Job, JobStatus
-from app.models.search import SearchResult, SearchSession, SearchStatus
+from app.models.search import ConversationState, SearchResult, SearchSession, SearchStatus
 from app.models.tenancy import (
     ROLE_RANK,
     LoginAttempt,
@@ -33,6 +34,7 @@ __all__ = [
     "AuditEvent",
     "AuthorizedSender",
     "Category",
+    "ConversationState",
     "Direction",
     "Document",
     "DocumentStatus",
@@ -53,6 +55,7 @@ __all__ = [
     "SearchResult",
     "SearchSession",
     "SearchStatus",
+    "SenderRole",
     "Tenant",
     "TenantMembership",
     "TenantStatus",

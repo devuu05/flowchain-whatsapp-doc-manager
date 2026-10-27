@@ -63,6 +63,21 @@ class FakeStorage(DocumentStorage):
             raise ProviderError("not found", provider="fake", transient=False, status_code=404)
         return self.files[file_id][0]
 
+    def rename(self, file_id: str, new_name: str) -> StoredFile:
+        if file_id not in self.files:
+            raise ProviderError("not found", provider="fake", transient=False, status_code=404)
+        stored, data, doc_id = self.files[file_id]
+        renamed = StoredFile(
+            file_id=stored.file_id,
+            name=new_name,
+            folder_id=stored.folder_id,
+            size_bytes=stored.size_bytes,
+            md5=stored.md5,
+            mime_type=stored.mime_type,
+        )
+        self.files[file_id] = (renamed, data, doc_id)
+        return renamed
+
     def trash(self, file_id: str) -> None:
         self.files.pop(file_id, None)
 

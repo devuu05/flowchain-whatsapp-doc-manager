@@ -1,4 +1,4 @@
-"""Persisted WhatsApp search sessions and their numbered results."""
+"""Persisted WhatsApp search sessions, their numbered results, and guided-chat state."""
 
 from __future__ import annotations
 
@@ -36,6 +36,28 @@ class SearchSession(UUIDPk, Timestamps, Base):
     page: Mapped[int] = mapped_column(Integer, default=1)
     total: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default=SearchStatus.active)
+    expires_at: Mapped[datetime]
+
+
+class ConversationState(UUIDPk, Timestamps, Base):
+    """One open guided step per sender (menu, rename/delete picks, delete confirmation).
+
+    Stored in Postgres like every other piece of conversation state, so it survives restarts
+    and multiple workers. A new state replaces the previous one for the same sender.
+    """
+
+    __tablename__ = "conversation_states"
+    __table_args__ = (UniqueConstraint("tenant_id", "connection_id", "sender"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("integration_configs.id", ondelete="CASCADE")
+    )
+    sender: Mapped[str] = mapped_column(String(32))
+    kind: Mapped[str] = mapped_column(String(32))
+    data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     expires_at: Mapped[datetime]
 
 

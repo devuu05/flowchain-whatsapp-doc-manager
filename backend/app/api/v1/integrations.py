@@ -1,4 +1,4 @@
-"""WhatsApp and Google Drive connection management. Secrets are write-only."""
+"""WhatsApp, Google Drive and OneDrive connection management. Secrets are write-only."""
 
 from __future__ import annotations
 
@@ -23,8 +23,9 @@ from app.models import (
 )
 from app.providers import registry
 from app.providers.errors import ProviderError
-from app.providers.storage import google_oauth
+from app.providers.storage import google_oauth, microsoft_oauth
 from app.providers.storage.google_drive import GoogleDriveStorage
+from app.providers.storage.onedrive import OneDriveStorage
 from app.schemas.api import IntegrationOut, OAuthStartOut, WhatsAppConnectIn
 from app.security.crypto import (
     constant_time_equals,
@@ -229,37 +230,46 @@ def google_start(ctx: Admin) -> OAuthStartOut:
     return OAuthStartOut(authorization_url=google_oauth.build_authorization_url(state))
 
 
-def _redirect(status: str, tenant_id: uuid.UUID | None = None) -> RedirectResponse:
+def _redirect(
+    status: str, tenant_id: uuid.UUID | None = None, provider: str = "google"
+) -> RedirectResponse:
     base = get_settings().dashboard_url
     if tenant_id is None:
         return RedirectResponse(f"{base}/app?drive={status}", status_code=303)
-    return RedirectResponse(f"{base}/t/{tenant_id}/settings/drive?result={status}", status_code=303)
+    suffix = "" if provider == "google" else f"&provider={provider}"
+    return RedirectResponse(
+        f"{base}/t/{tenant_id}/settings/drive?result={status}{suffix}", status_code=303
+    )
 
 
-@router.get("/integrations/google/callback", include_in_schema=False)
-def google_callback(
-    request: Request,
-    db: DB,
-    state: str = Query(max_length=1000),
-    code: str | None = Query(default=None, max_length=2000),
-    error: str | None = Query(default=None, max_length=200),
-) -> RedirectResponse:
-    data = verify("google_oauth", state)
+class _CallbackRejected(Exception):
+    def __init__(self, status: str, tenant_id: uuid.UUID | None = None) -> None:
+        super().__init__(status)
+        self.status = status
+        self.tenant_id = tenant_id
+
+
+def _callback_admin(
+    request: Request, db: DB, state_kind: str, state: str
+) -> tuple[uuid.UUID, uuid.UUID]:
+    """Validate an OAuth callback (signed state, same browser session, admin role).
+
+    Returns (tenant_id, user_id) or raises _CallbackRejected with the redirect status.
+    """
+    data = verify(state_kind, state)
     if data is None:
-        return _redirect("invalid_state")
+        raise _CallbackRejected("invalid_state")
     tenant_id, user_id = uuid.UUID(data["t"]), uuid.UUID(data["u"])
     # The flow must finish in the same signed-in browser session that started it, so a
-    # consent link cannot be handed to someone else to attach their Drive to this tenant.
+    # consent link cannot be handed to someone else to attach their storage to this tenant.
     try:
         _, sess = resolve_session(db, request.cookies.get(get_settings().session_cookie_name))
-    except NotAuthenticated:
-        return _redirect("session_mismatch", tenant_id)
+    except NotAuthenticated as exc:
+        raise _CallbackRejected("session_mismatch", tenant_id) from exc
     if sess.user_id != user_id or not constant_time_equals(
         str(data.get("s", "")), _session_binding(sess.token_hash)
     ):
-        return _redirect("session_mismatch", tenant_id)
-    if error or not code:
-        return _redirect("denied", tenant_id)
+        raise _CallbackRejected("session_mismatch", tenant_id)
     user = db.get(User, user_id)
     membership = db.scalar(
         select(TenantMembership).where(
@@ -275,12 +285,31 @@ def google_callback(
         )
     )
     if not allowed:
-        return _redirect("forbidden", tenant_id)
+        raise _CallbackRejected("forbidden", tenant_id)
+    return tenant_id, user_id
+
+
+@router.get("/integrations/google/callback", include_in_schema=False)
+def google_callback(
+    request: Request,
+    db: DB,
+    state: str = Query(max_length=1000),
+    code: str | None = Query(default=None, max_length=2000),
+    error: str | None = Query(default=None, max_length=200),
+) -> RedirectResponse:
+    try:
+        tenant_id, user_id = _callback_admin(request, db, "google_oauth", state)
+    except _CallbackRejected as rej:
+        return _redirect(rej.status, rej.tenant_id)
+    if error or not code:
+        return _redirect("denied", tenant_id)
+    cfg = registry.drive_config(db, tenant_id)
+    if cfg is not None and cfg.provider == "onedrive":
+        return _redirect("other_storage", tenant_id)
     try:
         tokens = google_oauth.exchange_code(code)
         if not tokens.refresh_token:
             return _redirect("no_refresh_token", tenant_id)
-        cfg = registry.drive_config(db, tenant_id)
         root_id = cfg.settings.get("root_folder_id") if cfg else None
         # Reuse the previous root only if the newly authorized account can reach it
         # (with drive.file a different Google account cannot see the old folder).
@@ -320,6 +349,90 @@ def google_callback(
     )
     db.commit()
     return _redirect("connected", tenant_id)
+
+
+# ---- Microsoft OneDrive OAuth ------------------------------------------------------------
+@router.post("/tenants/{tenant_id}/integrations/microsoft/start", response_model=OAuthStartOut)
+def microsoft_start(ctx: Admin, db: DB) -> OAuthStartOut:
+    s = get_settings()
+    if not s.microsoft_client_id or not s.microsoft_client_secret.get_secret_value():
+        raise AppError("Microsoft OAuth is not configured on the server", code="oauth_unconfigured")
+    existing = registry.drive_config(db, ctx.tenant_id)
+    if existing is not None and existing.provider not in ("onedrive",):
+        raise Conflict("Disconnect the current storage integration before connecting OneDrive")
+    state = sign(
+        "microsoft_oauth",
+        {
+            "t": str(ctx.tenant_id),
+            "u": str(ctx.user.id),
+            "s": _session_binding(ctx.auth.session.token_hash),
+        },
+        600,
+    )
+    return OAuthStartOut(authorization_url=microsoft_oauth.build_authorization_url(state))
+
+
+@router.get("/integrations/microsoft/callback", include_in_schema=False)
+def microsoft_callback(
+    request: Request,
+    db: DB,
+    state: str = Query(max_length=1000),
+    code: str | None = Query(default=None, max_length=4000),
+    error: str | None = Query(default=None, max_length=200),
+) -> RedirectResponse:
+    try:
+        tenant_id, user_id = _callback_admin(request, db, "microsoft_oauth", state)
+    except _CallbackRejected as rej:
+        return _redirect(rej.status, rej.tenant_id, "onedrive")
+    if error or not code:
+        return _redirect("denied", tenant_id, "onedrive")
+    cfg = registry.drive_config(db, tenant_id)
+    if cfg is not None and cfg.provider != "onedrive":
+        return _redirect("other_storage", tenant_id, "onedrive")
+    try:
+        tokens = microsoft_oauth.exchange_code(code)
+        if not tokens.refresh_token:
+            return _redirect("no_refresh_token", tenant_id, "onedrive")
+        root_id = cfg.settings.get("root_folder_id") if cfg else None
+        # Reuse the previous root only if the newly authorized account can reach it.
+        if root_id and not OneDriveStorage.folder_accessible(tokens.access_token, root_id):
+            root_id = None
+        if not root_id:
+            root_id = OneDriveStorage.create_root_folder(tokens.access_token, DRIVE_ROOT_NAME)
+        account = OneDriveStorage.account_label(tokens.access_token)
+    except ProviderError as exc:
+        log.warning("microsoft_oauth_failed", extra={"error": str(exc)})
+        return _redirect("error", tenant_id, "onedrive")
+    if cfg is None:
+        cfg = IntegrationConfig(
+            tenant_id=tenant_id,
+            kind=IntegrationKind.onedrive,
+            provider="onedrive",
+            name="OneDrive",
+            settings={},
+        )
+        db.add(cfg)
+    cfg.encrypted_secrets = encrypt_json(tokens.to_secrets())
+    cfg.settings = {
+        **cfg.settings,
+        "root_folder_id": root_id,
+        "root_folder_name": DRIVE_ROOT_NAME,
+        "scope": tokens.scope,
+        "account": account,
+    }
+    cfg.status = IntegrationStatus.connected
+    cfg.last_error = None
+    cfg.last_checked_at = utcnow()
+    audit.record(
+        db,
+        "integration.onedrive_connected",
+        tenant_id=tenant_id,
+        actor_type="user",
+        actor_id=user_id,
+        details={"scope": tokens.scope},
+    )
+    db.commit()
+    return _redirect("connected", tenant_id, "onedrive")
 
 
 @router.post(

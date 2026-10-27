@@ -29,6 +29,8 @@ os.environ["INTERNAL_WEBHOOK_TOKEN"] = "internal-test-token-123"
 os.environ["GEMINI_API_KEY"] = ""
 os.environ["GOOGLE_CLIENT_ID"] = "test-client-id"
 os.environ["GOOGLE_CLIENT_SECRET"] = "test-client-secret"
+os.environ["MICROSOFT_CLIENT_ID"] = "test-ms-client-id"
+os.environ["MICROSOFT_CLIENT_SECRET"] = "test-ms-client-secret"
 
 import pytest
 from alembic import command

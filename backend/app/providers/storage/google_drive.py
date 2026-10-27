@@ -234,6 +234,15 @@ class GoogleDriveStorage(DocumentStorage):
         resp = self._request("GET", f"{API}/files/{file_id}", params={"fields": FILE_FIELDS})
         return self._stored(resp.json())
 
+    def rename(self, file_id: str, new_name: str) -> StoredFile:
+        resp = self._request(
+            "PATCH",
+            f"{API}/files/{file_id}",
+            params={"fields": FILE_FIELDS},
+            json={"name": new_name},
+        )
+        return self._stored(resp.json())
+
     def trash(self, file_id: str) -> None:
         self._request("PATCH", f"{API}/files/{file_id}", json={"trashed": True})
 

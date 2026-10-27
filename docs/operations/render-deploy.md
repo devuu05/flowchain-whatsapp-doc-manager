@@ -1,9 +1,15 @@
-# Deploy on Render (free plan) + Supabase (free) — step by step
+# Deploy on Render + Supabase (free) — step by step
 
-Chosen pilot setup: **₹0**, Render free web services for API and dashboard, Supabase free Postgres.
+Default setup (24/7): the **API on Render Starter (~$7/month, always on)**, the dashboard on the
+Render free plan, Supabase free Postgres. The WhatsApp bot runs entirely on the API, so it answers
+around the clock without your PC; the dashboard is only needed for admin work.
 You perform these steps in your own accounts. Never paste secrets into chat, tickets or git.
 
-## What "free" means here (accept before starting)
+Why not free for the API: free services sleep, and a WhatsApp message that arrives while the API
+sleeps can be lost (details below). With the API always on, its worker also touches the database
+every few seconds, so Supabase never pauses the project for inactivity.
+
+## What "free" means (only if you switch `flowchain-api` to `plan: free` for a trial)
 - Each service **sleeps after ~15 min without traffic**; the next request waits ~1 min while it
   starts. A WhatsApp message arriving while the API sleeps wakes it; if WasenderAPI does not retry
   timed-out webhooks (undocumented), **that message can be lost** — the sender gets no reply and
@@ -14,7 +20,7 @@ You perform these steps in your own accounts. Never paste secrets into chat, tic
   don't consume hours, so normal pilot usage fits; heavy all-day traffic could exhaust them, after
   which Render suspends free services until the next month.
 - Supabase free pauses a project after ~7 days with no activity; resume it from the Supabase dashboard.
-- Upgrade path without code changes: switch `flowchain-api` to Starter (~$7/mo) → always on.
+- `render.yaml` already sets `flowchain-api` to Starter; change it to `free` only for a trial.
 
 ## 1. Supabase database (≈5 min)
 1. https://supabase.com → New project. Region: **Mumbai (ap-south-1)** if offered, else Singapore.
@@ -37,8 +43,8 @@ The code must be in `devuu05/flowchain-whatsapp-doc-manager` (CI runs there; Ren
 
 ## 4. Create the services from the Blueprint
 1. https://dashboard.render.com → **New → Blueprint** → connect GitHub → choose the repo.
-2. Render reads `render.yaml` and proposes `flowchain-api` and `flowchain-dashboard` (plan free,
-   Singapore). It asks for every `sync: false` value:
+2. Render reads `render.yaml` and proposes `flowchain-api` (Starter, always on) and `flowchain-dashboard`
+   (free), both in Singapore. It asks for every `sync: false` value:
 
 | Service | Variable | Value |
 |---|---|---|
@@ -46,12 +52,14 @@ The code must be in `devuu05/flowchain-whatsapp-doc-manager` (CI runs there; Ren
 | api | `SECRET_KEY`, `FIELD_ENCRYPTION_KEYS`, `PROXY_SHARED_SECRET` | from step 2 |
 | api | `PUBLIC_BASE_URL` | `https://flowchain-api.onrender.com` (the URL Render shows for the service) |
 | api | `DASHBOARD_URL` | `https://flowchain-dashboard.onrender.com` |
-| api | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | step 6 (can be added later) |
+| api | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | step 6 — OneDrive (can be added later) |
+| api | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | only if you use Google Drive instead |
 | api | `GEMINI_API_KEY` | leave empty (AI off) unless billed key + client consent |
 | api | `BOOTSTRAP_ADMIN_EMAIL` | your email (first-run admin) |
 | api | `BOOTSTRAP_ADMIN_PASSWORD` | a strong password (≥12 chars, upper+lower case, digit) |
 | api | `BOOTSTRAP_TENANT_NAME` | the pilot client's business name |
 | api | `BOOTSTRAP_SENDER_PHONES` | staff WhatsApp numbers, comma separated, with country code |
+| api | `BOOTSTRAP_ADMIN_PHONES` | WhatsApp numbers allowed to rename/delete documents |
 | dashboard | `BACKEND_URL` | `https://flowchain-api.onrender.com` |
 | dashboard | `PROXY_SHARED_SECRET` | same as the API |
 
@@ -69,11 +77,17 @@ acts on an empty database and never changes existing users.
 3. Render → `flowchain-api` → Environment → **delete** `BOOTSTRAP_ADMIN_PASSWORD` (and the other
    `BOOTSTRAP_*` variables) → save. Render redeploys; nothing else changes.
 
-## 6. Google Drive OAuth
-Follow `docs/setup/google-drive.md` with redirect URI
+## 6. Storage: OneDrive (or Google Drive)
+**OneDrive:** follow `docs/setup/onedrive.md` with redirect URI
+`https://flowchain-dashboard.onrender.com/api/v1/integrations/microsoft/callback`, add
+`MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` to the API's environment, redeploy, then
+dashboard → **Cloud storage → Connect OneDrive** and sign in with the OneDrive account — from any
+phone or computer.
+
+**Google Drive (alternative):** follow `docs/setup/google-drive.md` with redirect URI
 `https://flowchain-dashboard.onrender.com/api/v1/integrations/google/callback`
 (it goes through the dashboard on purpose). Add the client ID/secret to the API's environment
-(Render → flowchain-api → Environment), redeploy, then dashboard → **Google Drive → Connect**.
+(Render → flowchain-api → Environment), redeploy, then dashboard → **Cloud storage → Connect Google Drive**.
 
 ## 7. WhatsApp (WasenderAPI)
 Follow `docs/setup/wasender.md`. The webhook URL shown in the dashboard starts with

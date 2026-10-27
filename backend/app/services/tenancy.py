@@ -9,7 +9,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict
-from app.models import AuthorizedSender, Category, Role, Tenant, TenantMembership, User
+from app.models import (
+    AuthorizedSender,
+    Category,
+    Role,
+    SenderRole,
+    Tenant,
+    TenantMembership,
+    User,
+)
 
 DEFAULT_CATEGORIES: list[tuple[str, str]] = [
     ("Cheque", "Cheques"),
@@ -74,7 +82,11 @@ def active_categories(db: Session, tenant_id: uuid.UUID) -> list[Category]:
 
 
 def add_authorized_sender(
-    db: Session, tenant_id: uuid.UUID, phone: str, display_name: str = ""
+    db: Session,
+    tenant_id: uuid.UUID,
+    phone: str,
+    display_name: str = "",
+    role: str = SenderRole.member,
 ) -> AuthorizedSender:
     digits = normalize_phone(phone)
     existing = db.scalar(
@@ -87,11 +99,27 @@ def add_authorized_sender(
             raise Conflict("This number is already authorized")
         existing.is_active = True
         existing.display_name = display_name or existing.display_name
+        existing.role = role
         return existing
-    sender = AuthorizedSender(tenant_id=tenant_id, phone=digits, display_name=display_name)
+    sender = AuthorizedSender(
+        tenant_id=tenant_id, phone=digits, display_name=display_name, role=role
+    )
     db.add(sender)
     db.flush()
     return sender
+
+
+def sender_role(db: Session, tenant_id: uuid.UUID, phone: str | None) -> str | None:
+    """Role of an active authorized sender ("member"/"admin"), or None if not authorized."""
+    if not phone:
+        return None
+    return db.scalar(
+        select(AuthorizedSender.role).where(
+            AuthorizedSender.tenant_id == tenant_id,
+            AuthorizedSender.phone == phone,
+            AuthorizedSender.is_active.is_(True),
+        )
+    )
 
 
 def is_authorized_sender(db: Session, tenant_id: uuid.UUID, phone: str | None) -> bool:

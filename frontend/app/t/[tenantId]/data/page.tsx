@@ -28,7 +28,7 @@ export default function DataPage() {
       <section className="card">
         <h2>Export</h2>
         <p>Download all document metadata, categories, authorized senders, message log and audit events as JSON. Original
-          files are already in your Google Drive. Integration secrets are never exported.</p>
+          files are already in your cloud storage (OneDrive or Google Drive). Integration secrets are never exported.</p>
         {isOwner && <a className="btn btn-primary" href={`/api/v1/tenants/${tenantId}/export`}>Download export</a>}
       </section>
       <section className="card danger-zone">
@@ -37,7 +37,7 @@ export default function DataPage() {
           events are retained as a record of the deletion. This cannot be undone.</p>
         <label className="checkbox">
           <input type="checkbox" checked={trash} onChange={(e) => setTrash(e.target.checked)} disabled={!isOwner} />
-          Also move the files Flow Chain created in Google Drive to the Drive trash
+          Also move the files Flow Chain created in cloud storage to its trash / recycle bin
         </label>
         {result && <Notice kind="success">{result}</Notice>}
         <button type="button" className="btn btn-danger" disabled={!isOwner} onClick={() => setOpen(true)}>Delete all data…</button>

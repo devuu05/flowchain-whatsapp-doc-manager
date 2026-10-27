@@ -1,8 +1,9 @@
 # Flow Chain — WhatsApp Document Manager
 
 A multi-tenant SaaS that lets a business **send documents to a WhatsApp number** and have them
-automatically **validated, read, classified and filed into the business's own Google Drive** —
-then **get them back later by chatting** in plain language.
+automatically **validated, read, classified and filed into the business's own OneDrive or Google
+Drive** — then **get them back later by chatting** in plain language, with a numbered menu,
+folder choice (`#Invoices/2026`) and admin-only rename/delete from WhatsApp.
 
 ```
 You (WhatsApp):  [photo of an invoice]  "invoice from ABC Traders"
@@ -15,11 +16,16 @@ Bot:             🔎 1 result(s) — 1. Invoice · ABC Traders · 2026-09-15
                  Reply with a number to get the file.
 You:             1
 Bot:             📤 Sending Invoice_ABC-Traders_2026-09-15_36b65a.pdf…  [file]
+
+Admin:           rename 1 to ABC September bill
+Bot:             ✏️ Renamed Invoice_ABC-Traders_2026-09-15_36b65a.pdf → ABC September bill.pdf
+Admin:           delete 1
+Bot:             ⚠️ Delete ABC September bill.pdf from 📁 Invoices/2026? Reply YES to delete or NO to keep it.
 ```
 
 > **Status: pilot-ready code, not yet deployed or verified against the real providers.**
-> All automated tests pass against a real PostgreSQL database, but WasenderAPI, Google Drive and
-> Gemini have only been exercised with mocked HTTP. See the [test report](docs/testing/test-report.md)
+> All automated tests pass against a real PostgreSQL database, but WasenderAPI, OneDrive, Google
+> Drive and Gemini have only been exercised with mocked HTTP. See the [test report](docs/testing/test-report.md)
 > and [manual provider tests](docs/testing/manual-provider-tests.md) before onboarding a client.
 
 ---
@@ -31,6 +37,14 @@ Bot:             📤 Sending Invoice_ABC-Traders_2026-09-15_36b65a.pdf…  [fil
 - Captions as descriptions; asks for a description when missing; handles several pending files
   without guessing (`2: receipt from Dev Construction`); `skip` / `cancel`; pending state expires safely.
 - Only **authorized sender numbers** are served; everyone else is ignored and audited.
+- Choose the folder with a caption starting with `#` (`#Clients/Acme contract`), or let the
+  classifier file it under `<Category>/<Year>/`.
+
+**Interactive chat & WhatsApp admins**
+- `hi` / `menu` → numbered menu (latest documents, find, folders, how to save; admins also get
+  rename and delete). `folders` lists folders with document counts.
+- Sender roles: **member** (save, find, receive) or **WhatsApp admin** (also `rename 3 to …`,
+  `delete 3`). Deletes always need a **YES** reply; roles are re-checked when the job runs.
 
 **Safety**
 - File type detected from content (not the extension); rejects macros, zip bombs, encrypted
@@ -44,8 +58,9 @@ Bot:             📤 Sending Invoice_ABC-Traders_2026-09-15_36b65a.pdf…  [fil
 - Output strictly validated: unknown values stay empty, categories clamped, filenames sanitized,
   extensions preserved.
 
-**Storage — Google Drive**
-- Least-privilege `drive.file` scope; private by default; `<Category>/<Year>/` folders.
+**Storage — OneDrive or Google Drive** (one per workspace, connected from any browser)
+- OneDrive (personal or Microsoft 365) via Microsoft Graph, `Files.ReadWrite`; Google Drive with
+  least-privilege `drive.file`. Private by default; files live under "Flow Chain Documents".
 - Idempotent uploads with reconciliation: retries never create duplicate files.
 - "✅ Saved" is only sent after the upload *and* the database commit succeed.
 
@@ -163,7 +178,7 @@ backend/            FastAPI app, workers, providers, Alembic migrations, pytest 
 frontend/           Next.js dashboard and Vitest suite
 infra/docker/       Dockerfiles and entrypoint
 docs/architecture/  plan, ADRs, provider notes, event schema, conversation rules, phase status
-docs/setup/         local development, WasenderAPI, Google Drive, Gemini
+docs/setup/         local development, WasenderAPI, OneDrive, Google Drive, Gemini
 docs/security/      checklist, privacy & data flows, key management
 docs/operations/    Render deploy, deployment plan & costs, runbook, incidents, backup, rollback, onboarding
 docs/testing/       test report, manual provider tests
@@ -177,6 +192,7 @@ CLAUDE.md           conventions and rules for AI coding agents and contributors
 |---|---|
 | Deploy on Render (free) | [docs/operations/render-deploy.md](docs/operations/render-deploy.md) |
 | WhatsApp (WasenderAPI) setup | [docs/setup/wasender.md](docs/setup/wasender.md) |
+| OneDrive (Microsoft) setup | [docs/setup/onedrive.md](docs/setup/onedrive.md) |
 | Google Drive OAuth setup | [docs/setup/google-drive.md](docs/setup/google-drive.md) |
 | Optional Gemini AI | [docs/setup/gemini.md](docs/setup/gemini.md) |
 | Pilot onboarding checklist | [docs/operations/onboarding-checklist.md](docs/operations/onboarding-checklist.md) |

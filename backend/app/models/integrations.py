@@ -16,7 +16,12 @@ from app.db.base import Base, Timestamps, UUIDPk
 
 class IntegrationKind(StrEnum):
     whatsapp = "whatsapp"
-    google_drive = "google_drive"
+    google_drive = "google_drive"  # also used by the FAKE dev storage
+    onedrive = "onedrive"
+
+
+# Kinds that provide document storage; a workspace has at most one active at a time.
+STORAGE_KINDS = (IntegrationKind.google_drive, IntegrationKind.onedrive)
 
 
 class IntegrationStatus(StrEnum):
@@ -46,6 +51,11 @@ class IntegrationConfig(UUIDPk, Timestamps, Base):
     last_checked_at: Mapped[datetime | None]
 
 
+class SenderRole(StrEnum):
+    member = "member"  # save, search, receive documents
+    admin = "admin"  # additionally rename and delete documents from WhatsApp
+
+
 class AuthorizedSender(UUIDPk, Timestamps, Base):
     __tablename__ = "authorized_senders"
     __table_args__ = (UniqueConstraint("tenant_id", "phone"),)
@@ -56,6 +66,7 @@ class AuthorizedSender(UUIDPk, Timestamps, Base):
     phone: Mapped[str] = mapped_column(String(32))  # digits only, with country code
     display_name: Mapped[str] = mapped_column(String(120), default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    role: Mapped[str] = mapped_column(String(20), default=SenderRole.member)
 
 
 class Category(UUIDPk, Timestamps, Base):

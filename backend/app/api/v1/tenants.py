@@ -49,6 +49,7 @@ from app.schemas.api import (
     QuotaUpdateIn,
     SenderIn,
     SenderOut,
+    SenderPatch,
     TenantCreateIn,
     TenantOut,
     TenantUpdateIn,
@@ -429,7 +430,7 @@ def list_senders(ctx: Member, db: DB) -> list[AuthorizedSender]:
 @router.post("/{tenant_id}/senders", response_model=SenderOut, status_code=201)
 def add_sender(body: SenderIn, ctx: Admin, db: DB) -> AuthorizedSender:
     try:
-        sender = add_authorized_sender(db, ctx.tenant_id, body.phone, body.display_name)
+        sender = add_authorized_sender(db, ctx.tenant_id, body.phone, body.display_name, body.role)
     except ValueError as exc:
         raise AppError(str(exc), code="invalid_phone") from exc
     audit.record(
@@ -441,9 +442,35 @@ def add_sender(body: SenderIn, ctx: Admin, db: DB) -> AuthorizedSender:
         target_type="sender",
         target_id=sender.id,
         ip=ctx.auth.ip,
+        details={"role": sender.role},
     )
     db.commit()
     return sender
+
+
+@router.patch("/{tenant_id}/senders/{sender_id}", response_model=SenderOut)
+def update_sender(sender_id: uuid.UUID, body: SenderPatch, ctx: Admin, db: DB) -> AuthorizedSender:
+    s = db.scalar(
+        select(AuthorizedSender).where(
+            AuthorizedSender.id == sender_id, AuthorizedSender.tenant_id == ctx.tenant_id
+        )
+    )
+    if s is None:
+        raise NotFound()
+    previous, s.role = s.role, body.role
+    audit.record(
+        db,
+        "sender.role_changed",
+        tenant_id=ctx.tenant_id,
+        actor_type="user",
+        actor_id=ctx.user.id,
+        target_type="sender",
+        target_id=s.id,
+        ip=ctx.auth.ip,
+        details={"from": previous, "to": body.role},
+    )
+    db.commit()
+    return s
 
 
 @router.delete("/{tenant_id}/senders/{sender_id}", status_code=204)

@@ -24,8 +24,8 @@ from app.providers import registry
 from app.providers.errors import ProviderError
 from app.schemas.events import NormalizedEvent
 from app.security.redaction import mask_phone
-from app.services import audit, conversation, delivery, outbox, pipeline
-from app.services.tenancy import is_authorized_sender
+from app.services import audit, conversation, delivery, doc_admin, outbox, pipeline
+from app.services.tenancy import is_authorized_sender, sender_role
 from app.workers import queue
 from app.workers.errors import PermanentJobError, TransientJobError
 from app.workers.registry import job_handler
@@ -80,7 +80,8 @@ def handle_inbound(db: Session, job: Job) -> None:
         _strip_provider_ref(ev_row)
         return
     ev = NormalizedEvent.model_validate(ev_row.normalized)
-    if not is_authorized_sender(db, tenant.id, ev.sender):
+    role = sender_role(db, tenant.id, ev.sender)
+    if role is None:
         ev_row.status = InboundStatus.ignored
         ev_row.ignore_reason = "sender not authorized"
         _strip_provider_ref(ev_row)
@@ -102,7 +103,9 @@ def handle_inbound(db: Session, job: Job) -> None:
     db.refresh(ev_row)
     if ev_row.status != InboundStatus.received:
         return
-    ctx = conversation.Ctx(db=db, tenant=tenant, conn=conn, sender=ev.sender, event=ev_row)
+    ctx = conversation.Ctx(
+        db=db, tenant=tenant, conn=conn, sender=ev.sender, event=ev_row, role=role
+    )
     if ev.media is not None:
         conversation.handle_media(ctx, ev)
         _strip_provider_ref(ev_row)
@@ -149,3 +152,5 @@ def send_message(db: Session, job: Job) -> None:
 
 job_handler("process_document", on_dead=pipeline.on_process_dead)(pipeline.process_document)
 job_handler("deliver_document", on_dead=delivery.on_deliver_dead)(delivery.deliver_document)
+job_handler("rename_document", on_dead=doc_admin.on_admin_job_dead)(doc_admin.rename_document)
+job_handler("delete_document", on_dead=doc_admin.on_admin_job_dead)(doc_admin.delete_document)
