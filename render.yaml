@@ -1,0 +1,25 @@
+# One-click deploy: Render -> New -> Blueprint -> this repo (branch simple-bot).
+# Always on, with a small disk that keeps the OneDrive sign-in across restarts.
+services:
+  - type: web
+    name: whatsapp-onedrive-bot
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: bot-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: WASENDER_API_KEY        # WasenderAPI -> your session -> API key
+        sync: false
+      - key: WASENDER_WEBHOOK_SECRET # same page -> webhook secret
+        sync: false
+      - key: ADMIN_NUMBERS           # e.g. 919876543210 (country code, digits only)
+        sync: false
+      - key: MS_CLIENT_ID            # Microsoft app (client) ID, see README step 1
+        sync: false
+      - key: ANTHROPIC_API_KEY       # optional: enables chatting in plain language
+        sync: false
+      - key: BOT_TIMEZONE
+        value: Asia/Kolkata
